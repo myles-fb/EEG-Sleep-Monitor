@@ -1,8 +1,8 @@
-# 🧠 EEG Sleep Monitor
+# EEG Sleep Monitor
 
-A real-time EEG monitoring dashboard for sleep analysis using OpenBCI Cyton boards. This application provides live visualization of EEG signals, bandpower metrics, and power spectral density for sleep monitoring applications.
+This is a rapid prototype of at a real-time EEG monitoring dashboard for sleep analysis using OpenBCI Cyton boards. This application provides live visualization of EEG signals, bandpower metrics, and power spectral density for sleep monitoring applications.
 
-## 📋 Overview
+## Overview
 
 This project implements a complete data pipeline from EEG acquisition to real-time visualization:
 
@@ -12,7 +12,7 @@ Cyton Board → BrainFlow → Ring Buffer → Processing → Streamlit Dashboard
 
 The system continuously streams EEG data from an OpenBCI Cyton board, processes it in real-time to extract frequency band metrics, and displays the results in an interactive web dashboard.
 
-## ✨ Features
+## Features
 
 ### Real-Time Data Acquisition
 - **OpenBCI Cyton Support**: Direct integration with Cyton boards via BrainFlow
@@ -47,7 +47,7 @@ The system continuously streams EEG data from an OpenBCI Cyton board, processes 
   - Channel selection
   - Buffer size adjustment
 
-## 🏗️ Architecture
+## Architecture
 
 The application is organized into three main layers:
 
@@ -70,7 +70,7 @@ The application is organized into three main layers:
   - User controls and configuration
   - Status monitoring
 
-## 📦 Installation
+## Installation
 
 ### Prerequisites
 - Python 3.9 or higher
@@ -101,7 +101,7 @@ The application is organized into three main layers:
    - **Linux**: `/dev/ttyUSB*` or `/dev/ttyACM*`
    - **Windows**: `COM3`, `COM4`, etc.
 
-## 🚀 Usage
+## Usage
 
 ### Running the Streamlit Dashboard
 
@@ -125,121 +125,7 @@ The application is organized into three main layers:
    - Click "⏹️ Stop" button
    - Stream will disconnect cleanly
 
-### Running the Standalone Stream Script
-
-For testing or logging without the dashboard:
-
-```bash
-python src/acquisition/brainflow_stream.py --serial-port /dev/cu.usbserial-DM02583G --log-dir ./logs
-```
-
-Options:
-- `--serial-port`: Serial port path (required)
-- `--log-dir`: Directory to save raw EEG data (optional)
-- `--chunk-size-ms`: Polling interval in milliseconds (default: 100)
-- `--duration`: Stream duration in seconds (default: run until interrupted)
-- `--verbose`: Enable verbose logging
-
-## 📁 Project Structure
-
-```
-EEG-Sleep-Monitor/
-├── src/
-│   ├── acquisition/
-│   │   └── brainflow_stream.py      # Cyton board streaming
-│   ├── processing/
-│   │   ├── ring_buffer.py           # Thread-safe data buffer
-│   │   ├── filters.py               # Signal preprocessing
-│   │   ├── metrics.py               # Feature extraction
-│   │   └── processor.py             # Background processing worker
-│   ├── app/
-│   │   └── streamlit_app.py         # Web dashboard
-│   └── utils/
-│       └── logging.py               # Logging utilities
-├── documentation/
-│   ├── plan.md                      # Project plan and architecture
-│   ├── data_pipeline.md            # Data flow documentation
-│   └── sprints.md                   # Git workflow guide
-├── scripts/
-│   ├── run_stream.py                # Helper scripts
-│   └── replay_session.py
-├── tests/
-│   ├── test_ring_buffer.py
-│   └── test_metrics.py
-├── requirements.txt                 # Python dependencies
-└── README.md                        # This file
-```
-
-## 🔧 Configuration
-
-### Serial Port Configuration
-
-The application automatically converts macOS `tty.*` ports to `cu.*` ports for serial communication. On macOS, always use `/dev/cu.*` ports.
-
-### Frequency Bands
-
-Default EEG frequency bands:
-- **Delta**: 0.5 - 4 Hz (deep sleep)
-- **Theta**: 4 - 8 Hz (light sleep, meditation)
-- **Alpha**: 8 - 13 Hz (relaxed wakefulness)
-- **Beta**: 13 - 30 Hz (active thinking)
-- **Gamma**: 30 - 100 Hz (high-level processing)
-
-### Processing Parameters
-
-- **Window Size**: 2 seconds (default)
-- **Update Interval**: 1 second (default)
-- **Sample Rate**: 250 Hz (Cyton standard)
-- **Buffer Size**: 30 seconds (configurable)
-
-## 🧪 Testing
-
-Run tests (when implemented):
-```bash
-pytest tests/
-```
-
-## 📊 Data Format
-
-### BrainFlow Integration
-- Uses `DEFAULT_PRESET` for EEG data
-- Extracts only EEG channels using `get_eeg_channels()`
-- Data format: `[num_channels x num_samples]` numpy array
-
-### Logged Data
-When logging is enabled, raw EEG data is saved as CSV files:
-- Format: Each row is a time point, each column is a channel
-- Location: `src/acquisition/logs/` (or specified directory)
-- Filename: `eeg_raw_YYYYMMDD_HHMMSS.csv`
-
-## 🐛 Troubleshooting
-
-### Connection Issues
-
-**"UNABLE_TO_OPEN_PORT_ERROR"**:
-- Verify the serial port exists: `ls /dev/cu.*` (macOS) or `ls /dev/ttyUSB*` (Linux)
-- Ensure no other application is using the port
-- On macOS, use `/dev/cu.*` not `/dev/tty.*`
-- Check permissions (may need `sudo` on Linux)
-
-**"Board not found"**:
-- Verify Cyton board is powered on
-- Check RFduino dongle connection
-- Try unplugging and replugging the USB connection
-
-### Performance Issues
-
-**High CPU usage**:
-- Reduce update interval in processing worker
-- Increase chunk size (poll less frequently)
-- Disable unnecessary filters
-
-**Streaming lag**:
-- Check buffer size (may be too small)
-- Verify no other processes are using the serial port
-- Reduce visualization update frequency
-
-## 🔮 Future Enhancements
+## Future Enhancements
 
 - [ ] Multi-channel visualization
 - [ ] Real-time spectrogram (waterfall plot)
@@ -250,27 +136,23 @@ When logging is enabled, raw EEG data is saved as CSV files:
 - [ ] CAP (Cyclic Alternating Pattern) detection
 - [ ] Modulatory oscillation analysis
 
-## 📚 Documentation
+## Documentation
 
 - [Data Pipeline Architecture](documentation/data_pipeline.md)
 - [Project Plan](documentation/plan.md)
 - [Git Workflow](documentation/sprints.md)
 
-## 🤝 Contributing
-
-This is a capstone project. For questions or issues, please open an issue on GitHub.
-
-## 📄 License
+## License
 
 Apache-2.0 License
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [BrainFlow](https://github.com/brainflow-dev/brainflow) for EEG board integration
 - [OpenBCI](https://openbci.com/) for the Cyton board
 - [Streamlit](https://streamlit.io/) for the dashboard framework
 
-## 📧 Contact
+## contact
 
 For questions or support, please open an issue on the GitHub repository.
 
