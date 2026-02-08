@@ -2,6 +2,7 @@
 EEG signal processing and feature extraction.
 
 Computes bandpower, PSD, and other metrics from EEG data windows.
+Designed for single-channel EEG data.
 """
 
 import numpy as np
@@ -30,7 +31,9 @@ class EEGFeatures:
     psd_power: np.ndarray  # Power spectral density
     channel_index: int  # Which channel these features are for
     window_size_seconds: float
-
+    # Modulatory Oscillations (MOs): q-value and p-value per band when MOs is run on a bucket
+    mo_q_per_band: Optional[Dict[str, float]] = None
+    mo_p_per_band: Optional[Dict[str, float]] = None
 
 def compute_bandpower(
     data: np.ndarray,

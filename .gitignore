@@ -35,5 +35,6 @@ logs/
 src/acquisition/logs/
 
 # Data files (optional - uncomment if you don't want to track data)
-# *.csv
-# *.parquet
+*.csv
+*.edf
+

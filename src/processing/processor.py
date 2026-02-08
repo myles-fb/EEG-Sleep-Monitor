@@ -8,18 +8,20 @@ the ring buffer and computing EEG features (bandpower, PSD) for visualization.
 import time
 import logging
 import numpy as np
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from multiprocessing import Manager
 
 try:
     from .ring_buffer import RingBuffer
     from .metrics import extract_features, EEGFeatures
     from .filters import preprocess_eeg
+    from .mos import compute_mos_for_bucket, MOsResult
 except ImportError:
     # Fallback for absolute imports
     from processing.ring_buffer import RingBuffer
     from processing.metrics import extract_features, EEGFeatures
     from processing.filters import preprocess_eeg
+    from processing.mos import compute_mos_for_bucket, MOsResult
 
 
 class ProcessingWorker:
@@ -39,7 +41,10 @@ class ProcessingWorker:
         update_interval_seconds: float = 1.0,
         channel_index: int = 0,
         apply_notch: bool = False,
-        apply_bandpass: bool = False
+        apply_bandpass: bool = False,
+        enable_mos: bool = False,
+        mo_bucket_seconds: float = 120.0,
+        mo_n_surrogates: int = 50,
     ):
         """
         Initialize the processing worker.
@@ -53,6 +58,9 @@ class ProcessingWorker:
             channel_index: Which channel to process
             apply_notch: Whether to apply 60 Hz notch filter
             apply_bandpass: Whether to apply bandpass filter
+            enable_mos: Whether to run Modulatory Oscillations (MOs) detection on time buckets
+            mo_bucket_seconds: Length of time bucket for MOs (e.g. 120 or 300 seconds)
+            mo_n_surrogates: Number of phase-randomized surrogates for MOs p-values
         """
         self.ring_buffer = ring_buffer
         self.shared_state = shared_state
@@ -62,6 +70,10 @@ class ProcessingWorker:
         self.channel_index = channel_index
         self.apply_notch = apply_notch
         self.apply_bandpass = apply_bandpass
+        self.enable_mos = enable_mos
+        self.mo_bucket_seconds = mo_bucket_seconds
+        self.mo_n_surrogates = mo_n_surrogates
+        self._last_mo_bucket_time: Optional[float] = None
         
         self.is_running = False
         self.logger = logging.getLogger(__name__)
@@ -79,6 +91,9 @@ class ProcessingWorker:
                 
                 # Check if it's time to update features
                 if current_time - last_update_time >= self.update_interval_seconds:
+                    # Optionally run MOs on a full time bucket (e.g. 2 or 5 min)
+                    if self.enable_mos and self.mo_bucket_seconds > 0:
+                        self._maybe_run_mos(current_time)
                     # Get window from ring buffer
                     window, is_valid = self.ring_buffer.get_window_seconds(
                         self.window_size_seconds,
@@ -137,6 +152,77 @@ class ProcessingWorker:
             self.is_running = False
             self.logger.info("Processing worker stopped")
     
+    def _maybe_run_mos(self, current_time: float):
+        """If buffer has at least mo_bucket_seconds of data, run MOs and store q-values."""
+        bucket_window, is_valid = self.ring_buffer.get_window_seconds(
+            self.mo_bucket_seconds,
+            channel_indices=None,
+        )
+        if not is_valid or bucket_window.size == 0:
+            return
+        # Throttle: don't run MOs again on the same bucket (e.g. run at most once per bucket)
+        if self._last_mo_bucket_time is not None:
+            if current_time - self._last_mo_bucket_time < self.mo_bucket_seconds * 0.5:
+                return
+        self._last_mo_bucket_time = current_time
+        try:
+            result = compute_mos_for_bucket(
+                bucket_window,
+                self.sample_rate,
+                timestamp=current_time,
+                bucket_length_seconds=self.mo_bucket_seconds,
+                bpm_mask=None,
+                n_surrogates=self.mo_n_surrogates,
+                channel_index=self.channel_index,
+            )
+            lock = self.shared_state.get("_lock")
+            if lock:
+                with lock:
+                    self._store_mos_result(result)
+            else:
+                self._store_mos_result(result)
+        except Exception as e:
+            self.logger.warning("MOs detection failed: %s", e)
+
+    def _store_mos_result(self, result: MOsResult):
+        """Store MOs result in shared state and append to history for finetuning."""
+        q_per_window = {
+            band: arr.tolist() for band, arr in result.q_per_window_per_band.items()
+        }
+        dom_freq_per_window = {
+            band: arr.tolist() for band, arr in result.dominant_freq_hz_per_window_per_band.items()
+        }
+        self.shared_state["mo_result"] = {
+            "timestamp": result.timestamp,
+            "bucket_length_seconds": result.bucket_length_seconds,
+            "q_per_band": result.q_per_band,
+            "p_per_band": result.p_per_band,
+            "q_per_window_per_band": q_per_window,
+            "dominant_freq_hz_per_window_per_band": dom_freq_per_window,
+            "dominant_freq_hz_per_band": result.dominant_freq_hz_per_band.copy(),
+            "n_surrogates": result.n_surrogates,
+        }
+        history = self.shared_state.get("mo_history")
+        if history is None:
+            history = []
+            self.shared_state["mo_history"] = history
+        history.append({
+            "timestamp": result.timestamp,
+            "q_per_band": result.q_per_band.copy(),
+            "p_per_band": result.p_per_band.copy(),
+            "q_per_window_per_band": {
+                b: arr.tolist() for b, arr in result.q_per_window_per_band.items()
+            },
+            "dominant_freq_hz_per_window_per_band": {
+                b: arr.tolist() for b, arr in result.dominant_freq_hz_per_window_per_band.items()
+            },
+            "dominant_freq_hz_per_band": result.dominant_freq_hz_per_band.copy(),
+        })
+        # Keep a bounded history (e.g. last 1000 buckets) to avoid unbounded growth
+        max_history = 1000
+        if len(history) > max_history:
+            self.shared_state["mo_history"] = history[-max_history:]
+
     def _update_shared_state(self, features: EEGFeatures):
         """
         Update shared state with computed features.
@@ -155,7 +241,7 @@ class ProcessingWorker:
     def _do_update_shared_state(self, features: EEGFeatures):
         """Internal method to update shared state (called with lock held)."""
         # Convert features to dictionary for sharing
-        self.shared_state['features'] = {
+        state = {
             'timestamp': features.timestamp,
             'bandpower': features.bandpower,
             'relative_bandpower': features.relative_bandpower,
@@ -164,6 +250,11 @@ class ProcessingWorker:
             'channel_index': features.channel_index,
             'window_size_seconds': features.window_size_seconds
         }
+        if features.mo_q_per_band is not None:
+            state['mo_q_per_band'] = features.mo_q_per_band
+        if features.mo_p_per_band is not None:
+            state['mo_p_per_band'] = features.mo_p_per_band
+        self.shared_state['features'] = state
         
         # Also store raw data window for visualization
         window, _ = self.ring_buffer.get_window_seconds(
@@ -196,6 +287,8 @@ def create_shared_state() -> Dict[str, Any]:
         'raw_data_timestamp': None,
         'stream_status': None,
         'is_streaming': False,
+        'mo_result': None,   # Latest MOs result (q_per_band, p_per_band) for current bucket
+        'mo_history': [],   # List of past MOs results for finetuning
         '_lock': threading.Lock()  # Lock for thread safety
     }
     return shared_dict
