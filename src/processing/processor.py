@@ -189,6 +189,9 @@ class ProcessingWorker:
         q_per_window = {
             band: arr.tolist() for band, arr in result.q_per_window_per_band.items()
         }
+        p_per_window = {
+            band: arr.tolist() for band, arr in result.p_per_window_per_band.items()
+        }
         dom_freq_per_window = {
             band: arr.tolist() for band, arr in result.dominant_freq_hz_per_window_per_band.items()
         }
@@ -198,6 +201,7 @@ class ProcessingWorker:
             "q_per_band": result.q_per_band,
             "p_per_band": result.p_per_band,
             "q_per_window_per_band": q_per_window,
+            "p_per_window_per_band": p_per_window,
             "dominant_freq_hz_per_window_per_band": dom_freq_per_window,
             "dominant_freq_hz_per_band": result.dominant_freq_hz_per_band.copy(),
             "n_surrogates": result.n_surrogates,
@@ -212,6 +216,9 @@ class ProcessingWorker:
             "p_per_band": result.p_per_band.copy(),
             "q_per_window_per_band": {
                 b: arr.tolist() for b, arr in result.q_per_window_per_band.items()
+            },
+            "p_per_window_per_band": {
+                b: arr.tolist() for b, arr in result.p_per_window_per_band.items()
             },
             "dominant_freq_hz_per_window_per_band": {
                 b: arr.tolist() for b, arr in result.dominant_freq_hz_per_window_per_band.items()

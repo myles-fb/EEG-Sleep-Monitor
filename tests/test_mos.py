@@ -59,7 +59,7 @@ def test_phase_randomize_surrogate():
     surr = phase_randomize_surrogate(data, rng=rng)
     assert surr.shape == data.shape
     assert np.all(np.isreal(surr))
-    np.testing.assert_allclose(np.fft.fft(surr[0]).real, np.fft.fft(data[0]).real, atol=1e-5)
+    np.testing.assert_allclose(np.abs(np.fft.fft(surr[0])), np.abs(np.fft.fft(data[0])), atol=1e-5)
 
 
 def test_extract_band_envelope():
@@ -122,12 +122,18 @@ def test_compute_mos_for_bucket_smoke():
     assert result.q_per_band
     assert result.p_per_band
     assert result.q_per_window_per_band
+    assert result.p_per_window_per_band
     assert result.dominant_freq_hz_per_window_per_band
     assert result.dominant_freq_hz_per_band
     for band in result.q_per_band:
         assert band in result.p_per_band
         assert band in result.q_per_window_per_band
         assert result.q_per_window_per_band[band].ndim == 1
+        assert band in result.p_per_window_per_band
+        assert result.p_per_window_per_band[band].ndim == 1
+        assert result.p_per_window_per_band[band].shape == result.q_per_window_per_band[band].shape
+        assert np.all(result.p_per_window_per_band[band] >= 0.0)
+        assert np.all(result.p_per_window_per_band[band] <= 1.0)
         assert band in result.dominant_freq_hz_per_window_per_band
         assert result.dominant_freq_hz_per_window_per_band[band].ndim == 1
         assert result.dominant_freq_hz_per_window_per_band[band].shape == result.q_per_window_per_band[band].shape
@@ -152,7 +158,13 @@ def test_compute_mos_for_bucket_multi_channel():
         assert r.channel_index == i
         assert r.q_per_band
         assert r.p_per_band
+        assert r.p_per_window_per_band
         for band in r.q_per_band:
             assert band in r.p_per_band
             assert band in r.q_per_window_per_band
             assert r.q_per_window_per_band[band].ndim == 1
+            assert band in r.p_per_window_per_band
+            assert r.p_per_window_per_band[band].ndim == 1
+            assert r.p_per_window_per_band[band].shape == r.q_per_window_per_band[band].shape
+            assert np.all(r.p_per_window_per_band[band] >= 0.0)
+            assert np.all(r.p_per_window_per_band[band] <= 1.0)

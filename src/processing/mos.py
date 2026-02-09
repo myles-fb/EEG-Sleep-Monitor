@@ -125,8 +125,9 @@ class MOsResult:
     bucket_length_seconds: float
     sample_rate: float
     q_per_band: Dict[str, float]  # band label -> q (max over windows, for p-value)
-    p_per_band: Dict[str, float]  # band label -> p-value vs surrogate
+    p_per_band: Dict[str, float]  # band label -> p-value vs surrogate (min over windows)
     q_per_window_per_band: Dict[str, np.ndarray]  # band label -> (n_windows,) q per window
+    p_per_window_per_band: Dict[str, np.ndarray]  # band label -> (n_windows,) p-value per window
     dominant_freq_hz_per_window_per_band: Dict[str, np.ndarray]  # band label -> (n_windows,) dominant modulation freq in Hz
     dominant_freq_hz_per_band: Dict[str, float]  # band label -> dominant freq at window where q is max (Hz, NaN if none)
     n_surrogates: int
@@ -606,6 +607,7 @@ def compute_mos_for_bucket(
     per_ch_q_per_band: List[Dict[str, float]] = [{} for _ in range(n_ch)]
     per_ch_p_per_band: List[Dict[str, float]] = [{} for _ in range(n_ch)]
     per_ch_q_per_window_per_band: List[Dict[str, np.ndarray]] = [{} for _ in range(n_ch)]
+    per_ch_p_per_window_per_band: List[Dict[str, np.ndarray]] = [{} for _ in range(n_ch)]
     per_ch_dom_freq_per_window_per_band: List[Dict[str, np.ndarray]] = [{} for _ in range(n_ch)]
     per_ch_dom_freq_per_band: List[Dict[str, float]] = [{} for _ in range(n_ch)]
 
@@ -618,21 +620,18 @@ def compute_mos_for_bucket(
         q_real, q_per_window_per_ch, dom_freq_per_window_per_ch = lasso_mo_q(
             env, T, wintime_sec=wintime_sec, winjump_sec=winjump_sec
         )
-        # Surrogate q-values (shared across channels)
-        q_surr_list = []
+        # Surrogate per-window q-values (for temporal null distribution)
+        # Each entry: list of n_ch arrays, each (n_windows,)
+        q_surr_per_window_list = []
         for (Ss, Ts, Fs_arr) in surr_spectrograms:
             env_surr = extract_band_envelope(Ss, Fs_arr, f_low, f_high)
             for ch in range(n_ch):
                 mask = gesd_outlier_mask(env_surr[:, ch], alpha=GESD_ALPHA, max_outliers=GESD_MAX_OUTLIERS)
                 env_surr[:, ch] = interpolate_outliers(env_surr[:, ch], mask)
-            q_s, _, _ = lasso_mo_q(
+            _, q_per_window_surr, _ = lasso_mo_q(
                 env_surr, Ts, wintime_sec=wintime_sec, winjump_sec=winjump_sec
             )
-            q_surr_list.append(q_s)
-        q_surr = np.array(q_surr_list)  # (n_surrogates, n_ch)
-        mu0 = np.mean(q_surr, axis=0)
-        sigma0 = np.std(q_surr, axis=0, ddof=0)
-        sigma0[sigma0 <= 0] = 1e-10
+            q_surr_per_window_list.append(q_per_window_surr)
 
         for ch in range(n_ch):
             per_ch_q_per_window_per_band[ch][band_label] = q_per_window_per_ch[ch]
@@ -644,11 +643,22 @@ def compute_mos_for_bucket(
                 per_ch_dom_freq_per_band[ch][band_label] = float(dom_freq_w[idx_max])
             else:
                 per_ch_dom_freq_per_band[ch][band_label] = np.nan
-            q_val = float(q_real[ch])
-            p_val = float(1 - stats.norm.cdf(q_val, loc=mu0[ch], scale=sigma0[ch]))
-            p_val = np.clip(p_val, 0.0, 1.0)
-            per_ch_q_per_band[ch][band_label] = q_val
-            per_ch_p_per_band[ch][band_label] = p_val
+
+            # Pool all surrogate per-window q-values for this channel (temporal null)
+            all_surr_q = np.concatenate([s[ch] for s in q_surr_per_window_list])
+            mu0 = float(np.mean(all_surr_q))
+            sigma0 = float(np.std(all_surr_q, ddof=0))  # ddof=0 matches MATLAB std(x,1)
+            if sigma0 <= 0:
+                sigma0 = 1e-10
+
+            # Per-window p-values (matching MATLAB: normcdf per window)
+            p_windows = 1.0 - stats.norm.cdf(q_w, loc=mu0, scale=sigma0)
+            p_windows = np.clip(p_windows, 0.0, 1.0)
+            per_ch_p_per_window_per_band[ch][band_label] = p_windows
+
+            # Aggregate p and q (backward compat: min p across windows, max q)
+            per_ch_p_per_band[ch][band_label] = float(np.min(p_windows)) if p_windows.size else 0.5
+            per_ch_q_per_band[ch][band_label] = float(np.max(q_w)) if q_w.size else 0.0
 
     # Build MOsResult per channel
     results = []
@@ -660,6 +670,7 @@ def compute_mos_for_bucket(
             q_per_band=per_ch_q_per_band[i],
             p_per_band=per_ch_p_per_band[i],
             q_per_window_per_band=per_ch_q_per_window_per_band[i],
+            p_per_window_per_band=per_ch_p_per_window_per_band[i],
             dominant_freq_hz_per_window_per_band=per_ch_dom_freq_per_window_per_band[i],
             dominant_freq_hz_per_band=per_ch_dom_freq_per_band[i],
             n_surrogates=n_surrogates,

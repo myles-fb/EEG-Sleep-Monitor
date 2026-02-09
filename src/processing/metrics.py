@@ -34,6 +34,7 @@ class EEGFeatures:
     # Modulatory Oscillations (MOs): q-value and p-value per band when MOs is run on a bucket
     mo_q_per_band: Optional[Dict[str, float]] = None
     mo_p_per_band: Optional[Dict[str, float]] = None
+    mo_p_per_window_per_band: Optional[Dict[str, np.ndarray]] = None
 
 def compute_bandpower(
     data: np.ndarray,

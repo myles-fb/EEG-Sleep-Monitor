@@ -124,6 +124,7 @@ def result_to_dict(result) -> dict:
         "q_per_band": result.q_per_band,
         "p_per_band": result.p_per_band,
         "q_per_window_per_band": {k: _nan_to_none(v.tolist()) for k, v in result.q_per_window_per_band.items()},
+        "p_per_window_per_band": {k: _nan_to_none(v.tolist()) for k, v in result.p_per_window_per_band.items()},
         "dominant_freq_hz_per_window_per_band": {
             k: _nan_to_none(v.tolist()) for k, v in result.dominant_freq_hz_per_window_per_band.items()
         },
