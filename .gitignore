@@ -40,3 +40,6 @@ src/acquisition/logs/
 *.png
 *.json
 *.m
+
+# Test outputs
+test_outputs/
