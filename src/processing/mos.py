@@ -9,6 +9,7 @@ Designed to run on a single time bucket (e.g. 2 or 5 minutes) from the ring
 buffer and produce a q-value (likelihood of modulation) per frequency band.
 """
 
+import warnings
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
@@ -20,9 +21,11 @@ from dataclasses import dataclass, field
 
 # Optional sklearn for LASSO path (MATLAB lasso-style); fallback if missing
 try:
+    from sklearn.exceptions import ConvergenceWarning
     from sklearn.linear_model import lasso_path
     HAS_SKLEARN = True
 except ImportError:
+    ConvergenceWarning = UserWarning
     lasso_path = None
     HAS_SKLEARN = False
 
@@ -371,11 +374,23 @@ def _lasso_mo_q_single_channel(
     winjump_sec: float = LASSO_WINJUMP_SEC,
     alph: int = LASSO_ALPH,
     lasso_path_n_alphas: int = 100,
-    lasso_path_eps: float = 1e-3,
+    lasso_path_eps: float = 1e-1, #Increased eps to eliminate numerical instability caused by eps*max_lambda being too small.
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     LASSO-based MO strength (qm) and dominant modulation frequency per window (MATLAB lassoHIE).
-
+    * s0 is the band-limited envelope in the current window. 
+    * A is the sinusoid dictionary. 
+    * bb is the LASSO coefficients for a given λ. called "coeffs" in sklearn output. Each column of bb corresponds to a different λ in the LASSO path.
+    * The LASSO path refers to the sequence of LASSO fits across a range of λ values. For each λ, we get a different set of coefficients bb, which correspond to different levels of sparsity in the fit.
+    * LASSO_ALPH is 2 -- for each candidate frequency, we have a sin and cos basis function in the dictionary. This allows us to capture oscillations at that frequency with any phase.
+    * lasso_path_n_alphas is the number of λ values to compute in the LASSO path. More values give a more accurate max q, but also slower computation.
+    * lasso_path_eps controls the spacing of λ values in the LASSO path. Smaller eps means more λ values between the max and min λ, which can give a more accurate max q but also slower computation.
+    * Max and min λ values are automatically determined based on the data and the number of features in A. FIXME: max λ should be the parameter that gives one nonzero coefficient, to match MATLAB lasso default behavior.
+    * J = corr(A*bb, s0) is the correlation between the fitted envelope and the actual envelope. 
+    * The polar strength f_hold is computed from the LASSO coefficients and the sinusoid phases. 
+    * The entropy of f_hold across frequencies is computed to capture how concentrated the modulation is. 
+    * The final q value combines the correlation J and the entropy to find the best-fitting modulation frequency and strength.
+    
     Uses full λ path via sklearn lasso_path (MATLAB lasso default behavior). Per window:
     scale envelope to [-1,1], demean, fit LASSO path; per λ compute J = corr(A*bb, s0),
     per-frequency polar strength, entropy; q = J*(1-entropy); qm = max(q). Dominant
@@ -415,21 +430,32 @@ def _lasso_mo_q_single_channel(
             qm_per_window.append(0.0)
             dominant_freq_per_window.append(np.nan)
             continue
-        alphas, coefs, _ = lasso_path(
-            A, s0, eps=lasso_path_eps, n_alphas=lasso_path_n_alphas
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=ConvergenceWarning)
+            alphas, coefs, _ = lasso_path(
+                A, s0, eps=lasso_path_eps, n_alphas=lasso_path_n_alphas
+            )
         # coefs shape (n_features, n_alphas)
+        # Sanitize coefs: lasso_path can produce inf/nan or extreme values
+        # at weak regularization (small alpha). Clip to prevent overflow in A @ coefs.
+        coefs = np.nan_to_num(coefs, nan=0.0, posinf=0.0, neginf=0.0)
+        coefs = np.clip(coefs, -1e10, 1e10)
         n_alphas = coefs.shape[1]
 
-        # Vectorized correlation: compute fitted for all lambdas at once
-        fitted_all = A @ coefs  # (win_samples, n_alphas)
+        # Vectorized correlation: compute fitted for all lambdas at once.
+        # Suppress BLAS-level floating-point warnings; sanitize results afterward.
+        with np.errstate(divide='ignore', over='ignore', invalid='ignore'):
+            fitted_all = A @ coefs  # (win_samples, n_alphas)
+        fitted_all = np.nan_to_num(fitted_all, nan=0.0, posinf=0.0, neginf=0.0)
         std_fitted = np.std(fitted_all, axis=0)  # (n_alphas,)
         std_s0 = np.std(s0)
         if std_s0 > 0:
             # Pearson correlation: corr = cov(X,Y) / (std_X * std_Y)
             s0_centered = s0 - np.mean(s0)
             fitted_centered = fitted_all - np.mean(fitted_all, axis=0, keepdims=True)
-            cov_vals = (fitted_centered.T @ s0_centered) / len(s0)  # (n_alphas,)
+            with np.errstate(divide='ignore', over='ignore', invalid='ignore'):
+                cov_vals = (fitted_centered.T @ s0_centered) / len(s0)  # (n_alphas,)
+            cov_vals = np.nan_to_num(cov_vals, nan=0.0, posinf=0.0, neginf=0.0)
             denom = std_fitted * std_s0
             valid = denom > 0
             J_arr = np.zeros(n_alphas)

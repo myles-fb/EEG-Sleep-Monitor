@@ -40,6 +40,6 @@ src/acquisition/logs/
 *.png
 *.json
 *.m
-
+*.npz
 # Test outputs
 test_outputs/
