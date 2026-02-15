@@ -15,7 +15,6 @@ Usage:
   python scripts/generate_mos_heatmaps.py \
     --edf /path/to/3.edf \
     --output-dir /path/to/results \
-    --n-surrogates 1 \
     --bucket-length 300 \
     --envelope-window 120 \
     --envelope-step 30
@@ -289,9 +288,6 @@ def main() -> None:
         "--output-dir", type=Path, required=True, help="Output directory"
     )
     parser.add_argument(
-        "--n-surrogates", type=int, default=1, help="Number of surrogates (default 1)"
-    )
-    parser.add_argument(
         "--bucket-length", type=float, default=300.0, help="Bucket length in seconds (default 300 = 5 min)"
     )
     parser.add_argument(
@@ -308,7 +304,6 @@ def main() -> None:
 
     patient_id = edf_path.stem
     bucket_length_sec = args.bucket_length
-    n_surrogates = args.n_surrogates
     wintime_sec = args.envelope_window
     winjump_sec = args.envelope_step
 
@@ -344,7 +339,7 @@ def main() -> None:
             timestamp=bucket_offset,
             bpm_mask=bpm_mask,
             channel_indices=list(range(18)),
-            n_surrogates=n_surrogates,
+            n_surrogates=1,
             wintime_sec=wintime_sec,
             winjump_sec=winjump_sec,
         )
@@ -385,7 +380,7 @@ def main() -> None:
         bucket_length_sec=bucket_length_sec,
         envelope_window_sec=wintime_sec,
         envelope_step_sec=winjump_sec,
-        n_surrogates=n_surrogates,
+        n_surrogates=1,
         n_buckets=n_buckets,
         channel_labels=CHANNEL_LABELS,
         band_labels=BAND_LABELS,

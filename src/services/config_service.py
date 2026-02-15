@@ -6,7 +6,6 @@ from models import Patient
 def generate_pi_config(
     patient: Patient,
     study_id: str = None,
-    n_surrogates: int = 5,
 ) -> dict:
     """
     Build the JSON config that would be sent to the Raspberry Pi
@@ -45,7 +44,6 @@ def generate_pi_config(
         "bucket_duration": patient.bucket_size_seconds,
         "algorithm_window": patient.window_size_seconds,
         "features": features,
-        "n_surrogates": n_surrogates,
         "notification_thresholds": {},
         "save_raw_eeg": patient.save_raw_eeg,
     }

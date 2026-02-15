@@ -154,7 +154,7 @@ class PiStreamingController:
                     window_data,
                     self.sample_rate,
                     timestamp=timestamp,
-                    n_surrogates=self._config.n_surrogates,
+                    n_surrogates=1,
                     channel_index=0,
                     wintime_sec=lasso_win,
                     winjump_sec=lasso_step,

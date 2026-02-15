@@ -206,7 +206,7 @@ For each window and channel:
 
 ### 5.2 Integration
 
-- **Processor** (`src/processing/processor.py`): Optional `enable_mos`, `mo_bucket_seconds`, `mo_n_surrogates`. When enabled and the ring buffer has at least `mo_bucket_seconds` of data, the worker runs `compute_mos_for_bucket()` and stores the result (and history) in shared state (`mo_result`, `mo_history`), including `q_per_window_per_band` for finetuning and analysis.
+- **Processor** (`src/processing/processor.py`): Optional `enable_mos`, `mo_bucket_seconds`. When enabled and the ring buffer has at least `mo_bucket_seconds` of data, the worker runs `compute_mos_for_bucket()` and stores the result (and history) in shared state (`mo_result`, `mo_history`), including `q_per_window_per_band` for finetuning and analysis. The number of surrogates is hardcoded to 1.
 
 ---
 

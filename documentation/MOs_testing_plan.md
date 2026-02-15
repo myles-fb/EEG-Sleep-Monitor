@@ -19,7 +19,7 @@ To do this, we'll use the same data set: 10 .edf files, 1 per patient.
    ```bash
    python scripts/run_mos_edf_pipeline.py --input-dir data/edfs --output-dir data/mos_results
    ```
-4. Optional: `--n-surrogates 50` (default), `--channel-index 0` (which bipolar channel to report).
+4. Optional: `--channel-index 0` (which bipolar channel to report).
 
 Output JSON files include `q_per_band`, `p_per_band`, `q_per_window_per_band`, `dominant_freq_hz_per_window_per_band`, and `dominant_freq_hz_per_band` for downstream visualization and comparison with MATLAB.
 

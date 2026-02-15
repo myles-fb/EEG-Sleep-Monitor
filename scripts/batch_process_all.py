@@ -22,7 +22,6 @@ Usage:
   python scripts/batch_process_all.py \
     --input-dir data \
     --output-dir output \
-    --n-surrogates 1 \
     --bucket-length 300 \
     --envelope-window 120 \
     --envelope-step 30
@@ -191,7 +190,6 @@ def process_mos_heatmaps(
     Fs: float,
     bpm_mask: np.ndarray,
     output_dir: Path,
-    n_surrogates: int,
     bucket_length_sec: float,
     envelope_window_sec: float,
     envelope_step_sec: float,
@@ -206,7 +204,6 @@ def process_mos_heatmaps(
         Fs: sampling rate in Hz
         bpm_mask: (18, 2) bipolar montage mask
         output_dir: patient-specific output directory
-        n_surrogates: number of surrogates for p-value
         bucket_length_sec: bucket length in seconds
         envelope_window_sec: LASSO envelope window in seconds
         envelope_step_sec: LASSO envelope step in seconds
@@ -217,7 +214,7 @@ def process_mos_heatmaps(
     n_total_samples = data.shape[1]
     duration_sec = n_total_samples / Fs
 
-    print(f"  [MOs] Processing with {n_surrogates} surrogate(s), "
+    print(f"  [MOs] Processing with 1 surrogate, "
           f"bucket_length={bucket_length_sec}s, "
           f"envelope_window={envelope_window_sec}s ...")
 
@@ -243,7 +240,7 @@ def process_mos_heatmaps(
             timestamp=bucket_offset,
             bpm_mask=bpm_mask,
             channel_indices=list(range(18)),
-            n_surrogates=n_surrogates,
+            n_surrogates=1,
             wintime_sec=envelope_window_sec,
             winjump_sec=envelope_step_sec,
         )
@@ -283,7 +280,7 @@ def process_mos_heatmaps(
         bucket_length_sec=bucket_length_sec,
         envelope_window_sec=envelope_window_sec,
         envelope_step_sec=envelope_step_sec,
-        n_surrogates=n_surrogates,
+        n_surrogates=1,
         n_buckets=n_buckets,
         channel_labels=CHANNEL_LABELS,
         band_labels=BAND_LABELS,
@@ -302,7 +299,6 @@ def process_mos_heatmaps(
 def process_one_patient(
     edf_path: Path,
     output_root: Path,
-    n_surrogates: int,
     bucket_length_sec: float,
     envelope_window_sec: float,
     envelope_step_sec: float,
@@ -367,7 +363,7 @@ def process_one_patient(
         try:
             process_mos_heatmaps(
                 patient_id, edf_path.name, data, Fs, bpm_mask, output_dir,
-                n_surrogates, bucket_length_sec,
+                bucket_length_sec,
                 envelope_window_sec, envelope_step_sec
             )
         except Exception as e:
@@ -394,10 +390,6 @@ def main():
     parser.add_argument(
         "--patients", type=str, nargs="+",
         help="Process only specific patient IDs (e.g., --patients 3 7 10)"
-    )
-    parser.add_argument(
-        "--n-surrogates", type=int, default=1,
-        help="Number of surrogates for MOs p-value (default 1)"
     )
     parser.add_argument(
         "--bucket-length", type=float, default=300.0,
@@ -474,7 +466,6 @@ def main():
         process_one_patient(
             edf_path,
             output_root,
-            n_surrogates=args.n_surrogates,
             bucket_length_sec=args.bucket_length,
             envelope_window_sec=args.envelope_window,
             envelope_step_sec=args.envelope_step,

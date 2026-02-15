@@ -139,7 +139,7 @@ def process_edf(
     study_id: str,
     edf_path: str,
     patient: Patient,
-    n_surrogates: int = 5,
+    n_surrogates: int = 1,
     channel_index: int = 0,
     progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> Dict:

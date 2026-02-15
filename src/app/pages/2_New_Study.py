@@ -151,23 +151,13 @@ else:
     st.divider()
     st.subheader("Processing Settings")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        n_surrogates = st.slider(
-            "Number of Surrogates",
-            min_value=1,
-            max_value=50,
-            value=5,
-            help="More surrogates = more accurate p-values but slower processing",
-        )
-    with col2:
-        channel_index = st.number_input(
-            "Bipolar Channel Index",
-            min_value=0,
-            max_value=17,
-            value=0,
-            help="0-17 for LB-18 bipolar montage channels",
-        )
+    channel_index = st.number_input(
+        "Bipolar Channel Index",
+        min_value=0,
+        max_value=17,
+        value=0,
+        help="0-17 for LB-18 bipolar montage channels",
+    )
 
     notes = st.text_area("Study Notes (optional)", placeholder="e.g. Baseline night study")
 
@@ -203,7 +193,7 @@ else:
                 study_id=study.id,
                 edf_path=edf_path,
                 patient=patient,
-                n_surrogates=n_surrogates,
+                n_surrogates=1,
                 channel_index=channel_index,
                 progress_callback=on_progress,
             )

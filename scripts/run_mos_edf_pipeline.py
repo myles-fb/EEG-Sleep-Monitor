@@ -9,7 +9,7 @@ MOs testing pipeline: process 10 EDF files (1 per patient) and save results for 
 - Writes one JSON result file per EDF per window config to an output directory.
 
 Usage:
-  python scripts/run_mos_edf_pipeline.py --input-dir /path/to/edfs --output-dir /path/to/results [--n-surrogates 50]
+  python scripts/run_mos_edf_pipeline.py --input-dir /path/to/edfs --output-dir /path/to/results
   python scripts/run_mos_edf_pipeline.py --input-dir /path/to/edfs --output-dir /path/to/results --patient-number 3   # only 3.edf
 
 Requires: mne, numpy. Install with: pip install mne
@@ -137,7 +137,6 @@ def result_to_dict(result) -> dict:
 def run_pipeline(
     input_dir: Path,
     output_dir: Path,
-    n_surrogates: int = 50,
     channel_index: int = 0,
     patient_number: Optional[Union[str, int]] = None,
     all_channels: bool = False,
@@ -206,7 +205,7 @@ def run_pipeline(
                     Fs,
                     timestamp=0.0,
                     bpm_mask=bpm_mask,
-                    n_surrogates=n_surrogates,
+                    n_surrogates=1,
                     channel_index=channel_index,
                     channel_indices=list(range(18)) if all_channels else None,
                     wintime_sec=wintime_sec,
@@ -250,12 +249,6 @@ def main():
         help="Directory to write JSON result files",
     )
     parser.add_argument(
-        "--n-surrogates",
-        type=int,
-        default=50,
-        help="Number of surrogates for p-value (default 50)",
-    )
-    parser.add_argument(
         "--channel-index",
         type=int,
         default=0,
@@ -279,7 +272,6 @@ def main():
     run_pipeline(
         input_dir=args.input_dir,
         output_dir=args.output_dir,
-        n_surrogates=args.n_surrogates,
         channel_index=args.channel_index,
         patient_number=args.patient_number,
         all_channels=args.all_channels,

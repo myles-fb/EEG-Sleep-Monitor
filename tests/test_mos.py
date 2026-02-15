@@ -117,7 +117,7 @@ def test_compute_mos_for_bucket_smoke():
     n_samples = int(bucket_sec * Fs)
     eeg = np.random.randn(2, n_samples).astype(np.float64) * 0.5
     result = compute_mos_for_bucket(
-        eeg, Fs, timestamp=0.0, n_surrogates=2, channel_index=0
+        eeg, Fs, timestamp=0.0, n_surrogates=1, channel_index=0
     )
     assert result.q_per_band
     assert result.p_per_band
@@ -149,7 +149,7 @@ def test_compute_mos_for_bucket_multi_channel():
     n_samples = int(bucket_sec * Fs)
     eeg = np.random.randn(4, n_samples).astype(np.float64) * 0.5
     results = compute_mos_for_bucket(
-        eeg, Fs, timestamp=0.0, n_surrogates=2, channel_indices=[0, 1]
+        eeg, Fs, timestamp=0.0, n_surrogates=1, channel_indices=[0, 1]
     )
     assert isinstance(results, list)
     assert len(results) == 2

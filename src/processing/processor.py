@@ -44,7 +44,7 @@ class ProcessingWorker:
         apply_bandpass: bool = False,
         enable_mos: bool = False,
         mo_bucket_seconds: float = 120.0,
-        mo_n_surrogates: int = 50,
+        mo_n_surrogates: int = 1,
     ):
         """
         Initialize the processing worker.
@@ -60,7 +60,7 @@ class ProcessingWorker:
             apply_bandpass: Whether to apply bandpass filter
             enable_mos: Whether to run Modulatory Oscillations (MOs) detection on time buckets
             mo_bucket_seconds: Length of time bucket for MOs (e.g. 120 or 300 seconds)
-            mo_n_surrogates: Number of phase-randomized surrogates for MOs p-values
+            mo_n_surrogates: Number of phase-randomized surrogates for MOs p-values (hardcoded to 1)
         """
         self.ring_buffer = ring_buffer
         self.shared_state = shared_state

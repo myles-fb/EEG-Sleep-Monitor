@@ -131,7 +131,7 @@ python src/acquisition/brainflow_stream.py --serial-port /dev/cu.usbserial-DM025
 ### Batch MO Processing
 
 ```bash
-python scripts/run_mos_edf_pipeline.py --input-dir /path/to/edfs --output-dir /path/to/results --n-surrogates 50
+python scripts/run_mos_edf_pipeline.py --input-dir /path/to/edfs --output-dir /path/to/results 
 ```
 
 ## Testing

@@ -22,7 +22,7 @@ streamlit run src/app/streamlit_app.py
 python src/acquisition/brainflow_stream.py --serial-port /dev/cu.usbserial-DM02583G
 
 # Run MOs batch processing on EDF files
-python scripts/run_mos_edf_pipeline.py --input-dir /path/to/edfs --output-dir /path/to/results --n-surrogates 50
+python scripts/run_mos_edf_pipeline.py --input-dir /path/to/edfs --output-dir /path/to/results
 
 # Start WebSocket server (Pi gateway) + Streamlit dashboard together
 ./scripts/start_server.sh

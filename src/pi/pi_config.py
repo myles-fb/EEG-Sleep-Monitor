@@ -61,10 +61,6 @@ class PiConfig:
         return self._config.get("algorithm_window", 300)
 
     @property
-    def n_surrogates(self) -> int:
-        return self._config.get("n_surrogates", 5)
-
-    @property
     def notification_thresholds(self) -> dict:
         return self._config.get("notification_thresholds", {})
 
