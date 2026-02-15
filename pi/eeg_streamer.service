@@ -1,0 +1,24 @@
+[Unit]
+Description=EEG Pi Streamer — live EEG acquisition and WebSocket streaming
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/capstone/src
+ExecStart=/home/pi/capstone/.venv/bin/python -m pi.pi_main \
+    --serial-port /dev/ttyUSB0 \
+    --server ws://SERVER_IP:8765/ws/pi/DEVICE_ID \
+    --device-id DEVICE_ID \
+    --config /home/pi/capstone/pi_config.json
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment (adjust paths as needed)
+Environment=PYTHONPATH=/home/pi/capstone/src
+
+[Install]
+WantedBy=multi-user.target
