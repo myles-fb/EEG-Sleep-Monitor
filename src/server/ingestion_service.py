@@ -17,6 +17,8 @@ def ingest_features(
     window_end: float,
     features: dict,
     alerts: list,
+    channel_index: int = None,
+    channel_label: str = None,
 ):
     """
     Store feature data sent by a Pi device.
@@ -45,6 +47,8 @@ def ingest_features(
                 bucket_end=window_end,
                 feature_key=f"mo_q_{band}",
                 feature_value=val,
+                channel_index=channel_index,
+                channel_label=channel_label,
             ))
             total_records += 1
 
@@ -58,6 +62,8 @@ def ingest_features(
                 bucket_end=window_end,
                 feature_key=f"mo_p_{band}",
                 feature_value=val,
+                channel_index=channel_index,
+                channel_label=channel_label,
             ))
             total_records += 1
 
@@ -70,6 +76,8 @@ def ingest_features(
             bucket_end=window_end,
             feature_key="mo_count",
             feature_value=float(mo_count),
+            channel_index=channel_index,
+            channel_label=channel_label,
         ))
         total_records += 1
 
@@ -83,6 +91,8 @@ def ingest_features(
                 bucket_end=window_end,
                 feature_key=f"mo_dom_freq_{band}",
                 feature_value=val,
+                channel_index=channel_index,
+                channel_label=channel_label,
             ))
             total_records += 1
 
@@ -97,6 +107,8 @@ def ingest_features(
                 feature_key="mo_window_detail",
                 feature_value=None,
                 metadata_json=json.dumps(window_detail, default=str),
+                channel_index=channel_index,
+                channel_label=channel_label,
             ))
             total_records += 1
 
@@ -110,6 +122,8 @@ def ingest_features(
                 bucket_end=window_end,
                 feature_key=f"bandpower_{band}",
                 feature_value=val,
+                channel_index=channel_index,
+                channel_label=channel_label,
             ))
             total_records += 1
 

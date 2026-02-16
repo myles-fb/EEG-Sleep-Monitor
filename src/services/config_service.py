@@ -1,11 +1,15 @@
 """Generate Pi configuration JSON from a patient profile."""
 
+from typing import List, Optional
+
 from models import Patient
 
 
 def generate_pi_config(
     patient: Patient,
     study_id: str = None,
+    board_type: str = "cyton",
+    active_channels: Optional[List[int]] = None,
 ) -> dict:
     """
     Build the JSON config that would be sent to the Raspberry Pi
@@ -37,6 +41,9 @@ def generate_pi_config(
         for band in ("delta", "theta", "alpha", "beta"):
             features[f"bandpower_{band}"] = True
 
+    if active_channels is None:
+        active_channels = list(range(8))
+
     config = {
         "patient_id": patient.id,
         "study_id": study_id,
@@ -46,6 +53,8 @@ def generate_pi_config(
         "features": features,
         "notification_thresholds": {},
         "save_raw_eeg": patient.save_raw_eeg,
+        "board_type": board_type,
+        "active_channels": active_channels,
     }
 
     if patient.mo_count_threshold is not None:

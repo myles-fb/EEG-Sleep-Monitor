@@ -148,10 +148,14 @@ class PiStreamingController:
             lasso_win = min(120.0, window_sec)
             lasso_step = lasso_win / 4.0
 
+            # Filter to active channels
+            active_ch = self._config.active_channels
+            ch_data = window_data[active_ch, :] if len(active_ch) < window_data.shape[0] else window_data
+
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 result = compute_mos_for_bucket(
-                    window_data,
+                    ch_data,
                     self.sample_rate,
                     timestamp=timestamp,
                     n_surrogates=1,

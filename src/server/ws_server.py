@@ -125,6 +125,8 @@ async def _handle_feature_update(device, data):
         window_end=data.get("window_end", 0),
         features=data.get("features", {}),
         alerts=data.get("alerts", []),
+        channel_index=data.get("channel_index"),
+        channel_label=data.get("channel_label"),
     )
 
 
@@ -178,9 +180,18 @@ async def push_config(device_id: str):
         return JSONResponse(status_code=400, content={"error": "No patient assigned"})
 
     patient = patient_service.get_patient(device.patient_id)
+
+    # Extract active channels from study channels_json if available
+    active_channels = None
+    if device.current_study_id:
+        channels = study_service.get_study_channels(device.current_study_id)
+        if channels:
+            active_channels = [c["index"] for c in channels]
+
     config = config_service.generate_pi_config(
         patient,
         study_id=device.current_study_id,
+        active_channels=active_channels,
     )
     await manager.push_config(device.id, config)
     return JSONResponse(content={"status": "config_pushed"})

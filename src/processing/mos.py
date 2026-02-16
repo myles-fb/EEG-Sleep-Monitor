@@ -135,6 +135,10 @@ class MOsResult:
     dominant_freq_hz_per_band: Dict[str, float]  # band label -> dominant freq at window where q is max (Hz, NaN if none)
     n_surrogates: int
     channel_index: int = 0
+    spectrogram_S: Optional[np.ndarray] = None       # (n_times, n_freqs) single-channel power
+    spectrogram_T: Optional[np.ndarray] = None       # (n_times,)
+    spectrogram_F: Optional[np.ndarray] = None       # (n_freqs,)
+    band_envelopes: Optional[Dict[str, np.ndarray]] = None  # band_label -> (n_times,) post-GESD envelope
 
 
 def apply_bipolar_montage(
@@ -561,6 +565,7 @@ def compute_mos_for_bucket(
     wintime_sec: float = LASSO_WINTIME_SEC,
     winjump_sec: float = LASSO_WINJUMP_SEC,
     n_workers: Optional[int] = None,
+    store_spectrogram: bool = False,
 ) -> Union[MOsResult, List[MOsResult]]:
     """
     Run full MOs pipeline on a single time bucket.
@@ -580,6 +585,7 @@ def compute_mos_for_bucket(
         wintime_sec: LASSO envelope window length (s). Use 120 for 2 min, 300 for 5 min.
         winjump_sec: LASSO window step (s). Typically 1/4 * wintime_sec.
         n_workers: number of parallel workers for surrogate computation. None = serial (1).
+        store_spectrogram: if True, populate spectrogram_S/T/F and band_envelopes on results.
 
     Returns:
         MOsResult if single channel, List[MOsResult] if multiple channels via channel_indices.
@@ -636,6 +642,7 @@ def compute_mos_for_bucket(
     per_ch_p_per_window_per_band: List[Dict[str, np.ndarray]] = [{} for _ in range(n_ch)]
     per_ch_dom_freq_per_window_per_band: List[Dict[str, np.ndarray]] = [{} for _ in range(n_ch)]
     per_ch_dom_freq_per_band: List[Dict[str, float]] = [{} for _ in range(n_ch)]
+    per_ch_band_envelopes: List[Dict[str, np.ndarray]] = [{} for _ in range(n_ch)] if store_spectrogram else []
 
     for (f_low, f_high) in freq_bands:
         band_label = f"{f_low}_{f_high}hz"
@@ -643,6 +650,8 @@ def compute_mos_for_bucket(
         for ch in range(n_ch):
             mask = gesd_outlier_mask(env[:, ch], alpha=GESD_ALPHA, max_outliers=GESD_MAX_OUTLIERS)
             env[:, ch] = interpolate_outliers(env[:, ch], mask)
+            if store_spectrogram:
+                per_ch_band_envelopes[ch][band_label] = env[:, ch].copy()
         q_real, q_per_window_per_ch, dom_freq_per_window_per_ch = lasso_mo_q(
             env, T, wintime_sec=wintime_sec, winjump_sec=winjump_sec
         )
@@ -689,6 +698,12 @@ def compute_mos_for_bucket(
     # Build MOsResult per channel
     results = []
     for i, ch_idx in enumerate(ch_list):
+        spec_kwargs = {}
+        if store_spectrogram:
+            spec_kwargs["spectrogram_S"] = S[:, :, i]
+            spec_kwargs["spectrogram_T"] = T.copy()
+            spec_kwargs["spectrogram_F"] = F.copy()
+            spec_kwargs["band_envelopes"] = per_ch_band_envelopes[i]
         results.append(MOsResult(
             timestamp=timestamp,
             bucket_length_seconds=bucket_length_seconds,
@@ -701,6 +716,7 @@ def compute_mos_for_bucket(
             dominant_freq_hz_per_band=per_ch_dom_freq_per_band[i],
             n_surrogates=n_surrogates,
             channel_index=ch_idx,
+            **spec_kwargs,
         ))
 
     if multi_channel:

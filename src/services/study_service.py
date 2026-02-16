@@ -141,17 +141,21 @@ def process_edf(
     patient: Patient,
     n_surrogates: int = 1,
     channel_index: int = 0,
+    channel_indices: Optional[List[int]] = None,
+    channel_labels: Optional[List[str]] = None,
     progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> Dict:
     """
     Process an EDF file for a study:
       1. Split into algorithm windows (patient.window_size_seconds)
-      2. Run MOs pipeline on each window
+      2. Run MOs pipeline on each window (single or multi-channel)
       3. Store FeatureRecords + Alerts in the database
+      4. Save spectrogram NPZ files when enabled
 
     Returns a summary dict.
     """
     from processing.mos import compute_mos_for_bucket
+    from services.spectrogram_service import save_window_spectrogram
 
     data, Fs, ch_names = _load_edf(Path(edf_path))
 
@@ -161,6 +165,18 @@ def process_edf(
         bpm_mask = _build_lb18_bpm_mask(ch_names)
     except ValueError:
         logger.info("LB-18 montage not available; using raw channels")
+
+    # Resolve channel list
+    multi_channel = channel_indices is not None and len(channel_indices) > 1
+    if channel_indices is None:
+        channel_indices = [channel_index]
+    if channel_labels is None:
+        channel_labels = [None] * len(channel_indices)
+
+    # Whether to capture spectrogram data
+    want_spectrogram = bool(
+        patient.enable_full_spectrogram or patient.enable_envelope_spectrogram
+    )
 
     window_sec = patient.window_size_seconds or 300
     window_samples = int(window_sec * Fs)
@@ -173,6 +189,13 @@ def process_edf(
     total_records = 0
     total_alerts = 0
 
+    # Store channels_json on study
+    channels_info = [
+        {"index": ci, "label": cl}
+        for ci, cl in zip(channel_indices, channel_labels)
+    ]
+    update_study_channels(study_id, channels_info)
+
     with get_db() as db:
         for i in range(n_windows):
             start = i * window_samples
@@ -183,100 +206,131 @@ def process_edf(
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                result = compute_mos_for_bucket(
+                raw_result = compute_mos_for_bucket(
                     bucket,
                     Fs,
                     timestamp=ts,
                     bpm_mask=bpm_mask,
                     n_surrogates=n_surrogates,
-                    channel_index=channel_index,
+                    channel_indices=channel_indices,
                     wintime_sec=lasso_win,
                     winjump_sec=lasso_step,
+                    store_spectrogram=want_spectrogram,
                 )
 
-            # Store q-values per band
-            for band, q_val in result.q_per_band.items():
+            # Normalize to list for uniform handling
+            results_list = raw_result if isinstance(raw_result, list) else [raw_result]
+
+            for res_idx, result in enumerate(results_list):
+                ch_idx = channel_indices[res_idx] if res_idx < len(channel_indices) else result.channel_index
+                ch_label = channel_labels[res_idx] if res_idx < len(channel_labels) else None
+
+                # Save spectrogram NPZ
+                if want_spectrogram and result.spectrogram_S is not None:
+                    spec_T = result.spectrogram_T + ts  # offset to global time
+                    save_window_spectrogram(
+                        study_id=study_id,
+                        window_index=i,
+                        channel_index=ch_idx,
+                        S=result.spectrogram_S,
+                        T=spec_T,
+                        F=result.spectrogram_F,
+                        band_envelopes=result.band_envelopes,
+                    )
+
+                # Store q-values per band
+                for band, q_val in result.q_per_band.items():
+                    db.add(FeatureRecord(
+                        study_id=study_id,
+                        timestamp=ts,
+                        bucket_start=ts,
+                        bucket_end=ts_end,
+                        feature_key=f"mo_q_{band}",
+                        feature_value=float(q_val) if np.isfinite(q_val) else None,
+                        channel_index=ch_idx,
+                        channel_label=ch_label,
+                    ))
+                    total_records += 1
+
+                # Store p-values per band
+                for band, p_val in result.p_per_band.items():
+                    db.add(FeatureRecord(
+                        study_id=study_id,
+                        timestamp=ts,
+                        bucket_start=ts,
+                        bucket_end=ts_end,
+                        feature_key=f"mo_p_{band}",
+                        feature_value=float(p_val) if np.isfinite(p_val) else None,
+                        channel_index=ch_idx,
+                        channel_label=ch_label,
+                    ))
+                    total_records += 1
+
+                # MO count: number of bands with p < 0.05
+                sig_bands = sum(
+                    1 for p in result.p_per_band.values() if p < 0.05
+                )
                 db.add(FeatureRecord(
                     study_id=study_id,
                     timestamp=ts,
                     bucket_start=ts,
                     bucket_end=ts_end,
-                    feature_key=f"mo_q_{band}",
-                    feature_value=float(q_val) if np.isfinite(q_val) else None,
+                    feature_key="mo_count",
+                    feature_value=float(sig_bands),
+                    channel_index=ch_idx,
+                    channel_label=ch_label,
                 ))
                 total_records += 1
 
-            # Store p-values per band
-            for band, p_val in result.p_per_band.items():
+                # Dominant modulation frequency per band
+                for band, freq in result.dominant_freq_hz_per_band.items():
+                    db.add(FeatureRecord(
+                        study_id=study_id,
+                        timestamp=ts,
+                        bucket_start=ts,
+                        bucket_end=ts_end,
+                        feature_key=f"mo_dom_freq_{band}",
+                        feature_value=float(freq) if np.isfinite(freq) else None,
+                        channel_index=ch_idx,
+                        channel_label=ch_label,
+                    ))
+                    total_records += 1
+
+                # Per-LASSO-window detail as JSON
+                q_window_data = {
+                    b: arr.tolist() for b, arr in result.q_per_window_per_band.items()
+                }
+                p_window_data = {
+                    b: arr.tolist() for b, arr in result.p_per_window_per_band.items()
+                }
                 db.add(FeatureRecord(
                     study_id=study_id,
                     timestamp=ts,
                     bucket_start=ts,
                     bucket_end=ts_end,
-                    feature_key=f"mo_p_{band}",
-                    feature_value=float(p_val) if np.isfinite(p_val) else None,
+                    feature_key="mo_window_detail",
+                    feature_value=None,
+                    metadata_json=json.dumps(
+                        {"q_per_window": q_window_data, "p_per_window": p_window_data},
+                        default=str,
+                    ),
+                    channel_index=ch_idx,
+                    channel_label=ch_label,
                 ))
                 total_records += 1
 
-            # MO count: number of bands with p < 0.05
-            sig_bands = sum(
-                1 for p in result.p_per_band.values() if p < 0.05
-            )
-            db.add(FeatureRecord(
-                study_id=study_id,
-                timestamp=ts,
-                bucket_start=ts,
-                bucket_end=ts_end,
-                feature_key="mo_count",
-                feature_value=float(sig_bands),
-            ))
-            total_records += 1
-
-            # Dominant modulation frequency per band
-            for band, freq in result.dominant_freq_hz_per_band.items():
-                db.add(FeatureRecord(
-                    study_id=study_id,
-                    timestamp=ts,
-                    bucket_start=ts,
-                    bucket_end=ts_end,
-                    feature_key=f"mo_dom_freq_{band}",
-                    feature_value=float(freq) if np.isfinite(freq) else None,
-                ))
-                total_records += 1
-
-            # Per-LASSO-window detail as JSON (for deep-dive views)
-            q_window_data = {
-                b: arr.tolist() for b, arr in result.q_per_window_per_band.items()
-            }
-            p_window_data = {
-                b: arr.tolist() for b, arr in result.p_per_window_per_band.items()
-            }
-            db.add(FeatureRecord(
-                study_id=study_id,
-                timestamp=ts,
-                bucket_start=ts,
-                bucket_end=ts_end,
-                feature_key="mo_window_detail",
-                feature_value=None,
-                metadata_json=json.dumps(
-                    {"q_per_window": q_window_data, "p_per_window": p_window_data},
-                    default=str,
-                ),
-            ))
-            total_records += 1
-
-            # Threshold-based alerts
-            if patient.mo_count_threshold and sig_bands >= patient.mo_count_threshold:
-                hours = int(ts // 3600)
-                db.add(Alert(
-                    study_id=study_id,
-                    timestamp=ts,
-                    alert_type="mo_count",
-                    threshold=float(patient.mo_count_threshold),
-                    actual_value=float(sig_bands),
-                    bucket_time=f"{hours:02d}:00-{hours+1:02d}:00",
-                ))
-                total_alerts += 1
+                # Threshold-based alerts
+                if patient.mo_count_threshold and sig_bands >= patient.mo_count_threshold:
+                    hours = int(ts // 3600)
+                    db.add(Alert(
+                        study_id=study_id,
+                        timestamp=ts,
+                        alert_type="mo_count",
+                        threshold=float(patient.mo_count_threshold),
+                        actual_value=float(sig_bands),
+                        bucket_time=f"{hours:02d}:00-{hours+1:02d}:00",
+                    ))
+                    total_alerts += 1
 
             if progress_callback:
                 progress_callback(i + 1, n_windows)
@@ -291,6 +345,7 @@ def process_edf(
 
     return {
         "n_windows": n_windows,
+        "n_channels": len(channel_indices),
         "window_sec": window_sec,
         "total_records": total_records,
         "total_alerts": total_alerts,
@@ -380,3 +435,51 @@ def get_hourly_summary(study_id, bucket_size_seconds=3600) -> List[Dict]:
         result.append(entry)
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Channel-aware query helpers
+# ---------------------------------------------------------------------------
+
+def get_feature_timeseries_by_channel(
+    study_id: str,
+    feature_key: str,
+    channel_index: Optional[int] = None,
+) -> Tuple[List[float], List[float]]:
+    """Return (timestamps, values) filtered by channel_index.
+
+    If channel_index is None, returns all records (backward compat for
+    single-channel studies where channel_index column is NULL).
+    """
+    with get_db() as db:
+        q = (
+            db.query(FeatureRecord)
+            .filter_by(study_id=study_id, feature_key=feature_key)
+        )
+        if channel_index is not None:
+            q = q.filter(FeatureRecord.channel_index == channel_index)
+        records = q.order_by(FeatureRecord.timestamp).all()
+    return [r.timestamp for r in records], [r.feature_value for r in records]
+
+
+def get_study_channels(study_id: str) -> List[Dict]:
+    """Parse Study.channels_json into a list of channel dicts.
+
+    Returns [] for legacy single-channel studies.
+    """
+    with get_db() as db:
+        study = db.query(Study).filter_by(id=study_id).first()
+    if not study or not study.channels_json:
+        return []
+    try:
+        return json.loads(study.channels_json)
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
+def update_study_channels(study_id: str, channels: List[Dict]) -> None:
+    """Write channels_json on a study."""
+    with get_db() as db:
+        study = db.query(Study).filter_by(id=study_id).first()
+        if study:
+            study.channels_json = json.dumps(channels)

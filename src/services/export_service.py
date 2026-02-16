@@ -22,11 +22,13 @@ def export_csv(study_id: str, feature_key: Optional[str] = None) -> str:
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["timestamp", "bucket_start", "bucket_end", "feature_key", "feature_value"])
+    writer.writerow(["timestamp", "bucket_start", "bucket_end", "feature_key", "feature_value",
+                     "channel_index", "channel_label"])
     for r in records:
         if r.feature_key == "mo_window_detail":
             continue  # skip raw JSON detail rows in CSV
-        writer.writerow([r.timestamp, r.bucket_start, r.bucket_end, r.feature_key, r.feature_value])
+        writer.writerow([r.timestamp, r.bucket_start, r.bucket_end, r.feature_key, r.feature_value,
+                         r.channel_index, r.channel_label])
     return buf.getvalue()
 
 
@@ -55,6 +57,7 @@ def export_json(study_id: str) -> str:
         return json.dumps({"error": "Study not found"})
 
     # Group records by timestamp into feature-template buckets
+    # Multi-channel records are grouped by channel within each timestamp
     buckets = {}
     for r in records:
         ts = r.timestamp
@@ -64,14 +67,22 @@ def export_json(study_id: str) -> str:
                 "patient_id": study.patient_id,
                 "bucket_start": r.bucket_start,
                 "bucket_end": r.bucket_end,
+                "channels": {},
+            }
+        ch_key = str(r.channel_index) if r.channel_index is not None else "default"
+        if ch_key not in buckets[ts]["channels"]:
+            buckets[ts]["channels"][ch_key] = {
+                "channel_index": r.channel_index,
+                "channel_label": r.channel_label,
                 "features": {},
             }
+        ch_dict = buckets[ts]["channels"][ch_key]
         if r.feature_key == "mo_window_detail":
-            buckets[ts]["features"]["mo_window_detail"] = (
+            ch_dict["features"]["mo_window_detail"] = (
                 json.loads(r.metadata_json) if r.metadata_json else None
             )
         else:
-            buckets[ts]["features"][r.feature_key] = r.feature_value
+            ch_dict["features"][r.feature_key] = r.feature_value
 
     payload = {
         "study_id": study.id,
@@ -84,7 +95,17 @@ def export_json(study_id: str) -> str:
         "duration_sec": study.duration_sec,
         "sample_rate": study.sample_rate,
         "status": study.status,
-        "buckets": list(buckets.values()),
+        "channels_json": study.channels_json,
+        "buckets": [
+            {
+                "timestamp": b["timestamp"],
+                "patient_id": b["patient_id"],
+                "bucket_start": b["bucket_start"],
+                "bucket_end": b["bucket_end"],
+                "channels": list(b["channels"].values()),
+            }
+            for b in buckets.values()
+        ],
         "alerts": [
             {
                 "timestamp": a.timestamp,

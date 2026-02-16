@@ -168,3 +168,42 @@ def test_compute_mos_for_bucket_multi_channel():
             assert r.p_per_window_per_band[band].shape == r.q_per_window_per_band[band].shape
             assert np.all(r.p_per_window_per_band[band] >= 0.0)
             assert np.all(r.p_per_window_per_band[band] <= 1.0)
+
+
+def test_compute_mos_for_bucket_with_spectrogram():
+    """store_spectrogram=True populates spectrogram and envelope fields."""
+    Fs = 250.0
+    bucket_sec = 30
+    n_samples = int(bucket_sec * Fs)
+    eeg = np.random.randn(2, n_samples).astype(np.float64) * 0.5
+    result = compute_mos_for_bucket(
+        eeg, Fs, timestamp=0.0, n_surrogates=1, channel_index=0,
+        store_spectrogram=True,
+    )
+    assert isinstance(result, MOsResult)
+    assert result.spectrogram_S is not None
+    assert result.spectrogram_T is not None
+    assert result.spectrogram_F is not None
+    assert result.spectrogram_S.ndim == 2
+    assert result.spectrogram_S.shape[0] == len(result.spectrogram_T)
+    assert result.spectrogram_S.shape[1] == len(result.spectrogram_F)
+    assert result.band_envelopes is not None
+    assert len(result.band_envelopes) > 0
+    for band_label, env in result.band_envelopes.items():
+        assert env.ndim == 1
+        assert env.shape[0] == len(result.spectrogram_T)
+
+
+def test_compute_mos_for_bucket_no_spectrogram_by_default():
+    """Without store_spectrogram, fields remain None (zero overhead)."""
+    Fs = 250.0
+    bucket_sec = 30
+    n_samples = int(bucket_sec * Fs)
+    eeg = np.random.randn(2, n_samples).astype(np.float64) * 0.5
+    result = compute_mos_for_bucket(
+        eeg, Fs, timestamp=0.0, n_surrogates=1, channel_index=0,
+    )
+    assert result.spectrogram_S is None
+    assert result.spectrogram_T is None
+    assert result.spectrogram_F is None
+    assert result.band_envelopes is None

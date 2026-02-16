@@ -74,5 +74,13 @@ class PiConfig:
         return any(features.get(k) for k in config_keys)
 
     @property
+    def board_type(self) -> str:
+        return self._config.get("board_type", "cyton")
+
+    @property
+    def active_channels(self) -> list:
+        return self._config.get("active_channels", list(range(8)))
+
+    @property
     def raw(self) -> dict:
         return dict(self._config)

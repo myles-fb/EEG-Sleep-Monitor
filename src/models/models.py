@@ -76,6 +76,7 @@ class Study(Base):
     duration_sec = Column(Float, nullable=True)
     sample_rate = Column(Float, nullable=True)
     notes = Column(Text, nullable=True)
+    channels_json = Column(Text, nullable=True)      # JSON: [{"index": 0, "label": "Fp1-F7"}, ...]
 
     patient = relationship("Patient", back_populates="studies")
     device = relationship("Device")
@@ -99,6 +100,8 @@ class FeatureRecord(Base):
     feature_key = Column(String, nullable=False)     # e.g. mo_q_0.5_3hz, mo_count
     feature_value = Column(Float, nullable=True)     # null if feature disabled
     metadata_json = Column(Text, nullable=True)      # optional per-window detail
+    channel_index = Column(Integer, nullable=True)   # bipolar channel index (NULL = legacy single-channel)
+    channel_label = Column(String, nullable=True)    # e.g. "Fp1-F7"
 
     study = relationship("Study", back_populates="feature_records")
 

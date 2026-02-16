@@ -84,6 +84,26 @@ if data_source == "Raspberry Pi (Live)":
         format_func=lambda did: dev_names[did],
     )
 
+    # Board type and channel selection
+    st.divider()
+    st.subheader("Board & Channel Configuration")
+
+    board_type = st.selectbox(
+        "Board Type",
+        ["OpenBCI Cyton (8 ch)"],
+    )
+
+    pi_all_channels = list(range(8))
+    pi_active_channels = st.multiselect(
+        "Active Channels",
+        options=pi_all_channels,
+        default=pi_all_channels,
+        format_func=lambda ch: f"Channel {ch + 1}",
+    )
+    if not pi_active_channels:
+        st.warning("Select at least one channel.")
+        st.stop()
+
     notes = st.text_area("Study Notes (optional)", placeholder="e.g. Overnight monitoring")
 
     st.divider()
@@ -96,11 +116,16 @@ if data_source == "Raspberry Pi (Live)":
         )
         device_service.assign_patient(selected_dev_id, patient.id, study.id)
 
+        # Store channel info on study
+        channels_info = [{"index": ch, "label": f"Ch {ch + 1}"} for ch in pi_active_channels]
+        study_service.update_study_channels(study.id, channels_info)
+
         # Push config to the Pi via FastAPI
         try:
             requests.post(f"{FASTAPI_URL}/api/devices/{selected_dev_id}/config", timeout=3)
             st.success(
                 f"Live study started! Study ID: `{study.id[:8]}...`\n\n"
+                f"Board: {board_type}, Channels: {pi_active_channels}\n\n"
                 "Config pushed to Pi. Go to the **Dashboard** to view incoming data."
             )
         except requests.ConnectionError:
@@ -145,19 +170,43 @@ else:
             st.success(f"Uploaded: {uploaded.name}")
 
     # -----------------------------------------------------------------------
-    # Processing configuration
+    # Processing configuration — channel selection
     # -----------------------------------------------------------------------
 
     st.divider()
     st.subheader("Processing Settings")
 
-    channel_index = st.number_input(
-        "Bipolar Channel Index",
-        min_value=0,
-        max_value=17,
-        value=0,
-        help="0-17 for LB-18 bipolar montage channels",
+    # LB-18 bipolar montage labels
+    LB18_LABELS = [
+        "Fp1-F7", "F7-T7", "T7-P7", "P7-O1",
+        "Fp1-F3", "F3-C3", "C3-P3", "P3-O1",
+        "Fp2-F8", "F8-T8", "T8-P8", "P8-O2",
+        "Fp2-F4", "F4-C4", "C4-P4", "P4-O2",
+        "Fz-Cz", "Cz-Pz",
+    ]
+
+    channel_mode = st.radio(
+        "Channel Selection",
+        ["All channels (18)", "Select specific channels"],
+        horizontal=True,
     )
+
+    if channel_mode == "All channels (18)":
+        selected_channels = list(range(18))
+        selected_labels = LB18_LABELS[:]
+    else:
+        options = [f"{i}: {LB18_LABELS[i]}" for i in range(18)]
+        chosen = st.multiselect(
+            "Select bipolar channels",
+            options=options,
+            default=[options[0]],
+        )
+        selected_channels = [int(c.split(":")[0]) for c in chosen]
+        selected_labels = [LB18_LABELS[i] for i in selected_channels]
+
+    if not selected_channels:
+        st.warning("Select at least one channel.")
+        st.stop()
 
     notes = st.text_area("Study Notes (optional)", placeholder="e.g. Baseline night study")
 
@@ -194,22 +243,25 @@ else:
                 edf_path=edf_path,
                 patient=patient,
                 n_surrogates=1,
-                channel_index=channel_index,
+                channel_indices=selected_channels,
+                channel_labels=selected_labels,
                 progress_callback=on_progress,
             )
 
             progress.progress(1.0, text="Complete!")
 
             st.success("Study processing complete!")
-            col_a, col_b, col_c, col_d = st.columns(4)
-            with col_a:
+            cols = st.columns(5)
+            with cols[0]:
                 st.metric("Windows Processed", summary["n_windows"])
-            with col_b:
+            with cols[1]:
+                st.metric("Channels", summary.get("n_channels", 1))
+            with cols[2]:
                 duration_hrs = summary["duration_sec"] / 3600
                 st.metric("Recording Duration", f"{duration_hrs:.1f} hrs")
-            with col_c:
+            with cols[3]:
                 st.metric("Feature Records", summary["total_records"])
-            with col_d:
+            with cols[4]:
                 st.metric("Alerts", summary["total_alerts"])
 
             st.info("Go to the **Dashboard** page to view results.")
