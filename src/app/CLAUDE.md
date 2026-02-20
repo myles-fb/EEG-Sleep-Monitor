@@ -28,6 +28,8 @@ create_dominant_freq_chart(dom_freq_data, title)
 
 All functions accept numpy arrays and return `go.Figure`.
 
+**No rangesliders on heatmaps** — rangesliders were removed from all heatmap/spectrogram figures because they create a secondary panel with a dividing line that visually interrupts the chart (looks like x-axis in the middle). Use Plotly's built-in zoom/pan toolbar instead. Scatter/line charts may still use rangesliders.
+
 ## Patterns
 
 ### sys.path setup (required at top of every page)

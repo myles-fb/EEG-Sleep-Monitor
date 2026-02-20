@@ -76,6 +76,12 @@ streamlit run src/app/physician_app.py
 - [x] Task 10: Create 2_Per_Channel.py (ea3adb3)
 - [x] Task 11: Final verification — 25/25 tests passing
 
+## Post-Merge Fix: Rangeslider X-axis Interruption (commit 472ef87)
+- **Root cause:** `rangeslider=dict(visible=True)` on all heatmap `xaxis` dicts. Plotly adds a secondary mini-panel below with a dividing line that looks like an x-axis in the middle.
+- **Fix:** Removed `rangeslider` from `create_spectrogram_heatmap`, `create_q_heatmap_with_significance`, `create_envelope_spectrogram`, `create_band_envelope_plot`, `create_q_heatmap`. Added `automargin=True` to Q-heatmap y-axis.
+- **Dominant freq chart was unaffected** — it's a Scatter (no rangeslider), which confirmed the root cause.
+- **Rule:** Never add `rangeslider` to Heatmap figures. Plotly's built-in zoom/pan toolbar handles navigation.
+
 ## Final State
-All commits on branch `dashboard-redesign`. 25 tests pass.
-To continue: `git checkout dashboard-redesign` then open session in /Users/mylesfb/Code/capstone.
+All commits on `main` (472ef87). 25 tests pass.
+Pages: 1_Dashboard (Summary), 2_Per_Channel, 3_New_Study, 4_Export, 5_Devices.
