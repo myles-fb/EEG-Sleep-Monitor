@@ -122,3 +122,40 @@ def test_update_study_channels():
     assert len(result) == 1
     assert result[0]["index"] == 5
     assert result[0]["label"] == "F3-C3"
+
+
+# ---------------------------------------------------------------------------
+# Windowing helper tests
+# ---------------------------------------------------------------------------
+
+def test_n_windows_includes_near_complete_final_window():
+    """A recording with n_total just under 6 * window_samples should still yield 6 windows."""
+    from services.study_service import _compute_n_windows
+
+    window_samples = 75_000  # 5 min @ 250 Hz
+    n_total = 6 * window_samples - 1  # 449_999
+
+    n = _compute_n_windows(n_total, window_samples)
+    assert n == 6, f"Expected 6 windows, got {n}"
+
+
+def test_n_windows_exact_multiple():
+    """Exact multiple should give the exact count."""
+    from services.study_service import _compute_n_windows
+
+    window_samples = 75_000
+    n_total = 6 * window_samples  # 450_000
+
+    n = _compute_n_windows(n_total, window_samples)
+    assert n == 6
+
+
+def test_n_windows_less_than_half_dropped():
+    """A trailing chunk smaller than 50% of a window should NOT add an extra window."""
+    from services.study_service import _compute_n_windows
+
+    window_samples = 75_000
+    n_total = 5 * window_samples + 10_000  # 385_010 — only 13% of a window left
+
+    n = _compute_n_windows(n_total, window_samples)
+    assert n == 5

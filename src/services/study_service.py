@@ -135,6 +135,18 @@ def complete_study(study_id):
 # EDF Processing
 # ---------------------------------------------------------------------------
 
+def _compute_n_windows(n_total: int, window_samples: int) -> int:
+    """Compute the number of algorithm windows, including a nearly-complete final window.
+
+    A trailing chunk is included if it is >= 50% of window_samples. This prevents
+    an off-by-one drop when MNE loads the EDF with 1-2 samples fewer than expected.
+    """
+    n = max(1, n_total // window_samples)
+    if n_total - n * window_samples >= window_samples // 2:
+        n += 1
+    return n
+
+
 def process_edf(
     study_id: str,
     edf_path: str,
@@ -181,7 +193,7 @@ def process_edf(
     window_sec = patient.window_size_seconds or 300
     window_samples = int(window_sec * Fs)
     n_total = data.shape[1]
-    n_windows = max(1, n_total // window_samples)
+    n_windows = _compute_n_windows(n_total, window_samples)
 
     lasso_win = min(120.0, window_sec)
     lasso_step = lasso_win / 4.0
