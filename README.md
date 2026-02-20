@@ -1,161 +1,173 @@
 # EEG Sleep Monitor
 
-This is a rapid prototype of at a real-time EEG monitoring dashboard for sleep analysis using OpenBCI Cyton boards. This application provides live visualization of EEG signals, bandpower metrics, and power spectral density for sleep monitoring applications.
+Real-time EEG monitoring and Modulatory Oscillation (MO) detection for sleep analysis using OpenBCI Cyton boards. Supports two data paths: **EDF file upload** (batch processing) and **Raspberry Pi live streaming** (edge compute over WebSocket).
 
 ## Overview
 
-This project implements a complete data pipeline from EEG acquisition to real-time visualization:
-
 ```
-Cyton Board → BrainFlow → Ring Buffer → Processing → Streamlit Dashboard
+EDF Files ─────────────────────────────────────┐
+                                                ▼
+Cyton Board → BrainFlow → Ring Buffer → Processing → SQLite DB → Streamlit Dashboard
+                (Pi)                     (Pi edge)       ▲
+                                                         │
+                                            WebSocket ───┘
+                                          (Pi → Server)
 ```
 
-The system continuously streams EEG data from an OpenBCI Cyton board, processes it in real-time to extract frequency band metrics, and displays the results in an interactive web dashboard.
+The system runs MO detection (multi-taper spectrogram, phase-randomized surrogates, LASSO, entropy-based q-score, statistical p-value) on 5-minute algorithm windows. Results are stored as time-series feature records and displayed on a multi-page physician dashboard.
 
 ## Features
 
-### Real-Time Data Acquisition
-- **OpenBCI Cyton Support**: Direct integration with Cyton boards via BrainFlow
-- **Continuous Streaming**: Stable data acquisition at 250 Hz sample rate
-- **Ring Buffer**: Thread-safe circular buffer for continuous data storage
-- **Error Handling**: Robust connection management and error recovery
-
-### Signal Processing
-- **Preprocessing Filters**:
-  - DC offset removal
-  - Detrending
-  - 60 Hz notch filter (optional)
-  - Bandpass filtering (0.5-40 Hz, optional)
-- **Feature Extraction**:
-  - Bandpower computation (Delta, Theta, Alpha, Beta, Gamma)
-  - Relative bandpower metrics
-  - Power Spectral Density (PSD) via Welch's method
-
-### Interactive Dashboard
-- **Real-Time Visualization**:
-  - Live raw EEG trace (last 2 seconds)
-  - Bandpower metrics with absolute and relative values
-  - Power Spectral Density plot with frequency band markers
-- **Status Monitoring**:
-  - Connection status
-  - Sample rate and count
-  - Dropped packet tracking
-  - Stream duration
-- **Configuration Controls**:
-  - Serial port selection
-  - Filter toggles (notch, bandpass)
-  - Channel selection
-  - Buffer size adjustment
+- **MO Detection Pipeline**: Full MATLAB-equivalent MOs pipeline in Python (708 lines) — spectrogram, surrogates, band envelopes, GESD outlier removal, LASSO with sinusoid dictionary, q-value, p-value
+- **Dual Data Sources**: Upload EDF files for batch processing, or stream live from Raspberry Pi
+- **Multi-Patient Dashboard**: Patient profiles, per-patient feature toggles, configurable algorithm windows and dashboard buckets
+- **Pi Edge Computing**: On-device processing on Raspberry Pi 4 — only features sent over the network, not raw EEG
+- **WebSocket Gateway**: FastAPI server accepts multiple Pi connections, stores features in shared SQLite DB
+- **Alerts**: Threshold-based MO count alerts with per-hour bucketing
 
 ## Architecture
 
-The application is organized into three main layers:
-
-### 1. Acquisition Layer (`src/acquisition/`)
-- **`brainflow_stream.py`**: Manages Cyton board connection and data streaming
-  - Handles serial port communication
-  - Extracts EEG channels from BrainFlow data
-  - Writes data to ring buffer
-  - Optional raw data logging
-
-### 2. Processing Layer (`src/processing/`)
-- **`ring_buffer.py`**: Thread-safe circular buffer for continuous data storage
-- **`filters.py`**: Signal preprocessing utilities (DC removal, notch, bandpass)
-- **`metrics.py`**: Feature extraction (bandpower, PSD computation)
-- **`processor.py`**: Background worker that processes data and computes features
-
-### 3. Visualization Layer (`src/app/`)
-- **`streamlit_app.py`**: Interactive web dashboard
-  - Real-time data visualization
-  - User controls and configuration
-  - Status monitoring
+```
+src/
+├── acquisition/          # Cyton board streaming via BrainFlow
+│   └── brainflow_stream.py
+├── processing/           # Signal processing (runs on both server and Pi)
+│   ├── ring_buffer.py    # Thread-safe circular buffer
+│   ├── filters.py        # DC removal, notch, bandpass
+│   ├── metrics.py        # Bandpower, PSD, EEGFeatures dataclass
+│   ├── processor.py      # Background processing worker
+│   └── mos.py            # MO detection pipeline
+├── models/               # SQLAlchemy ORM
+│   ├── database.py       # SQLite engine, get_db() context manager
+│   └── models.py         # Patient, Study, Device, FeatureRecord, Alert
+├── services/             # Business logic
+│   ├── patient_service.py
+│   ├── study_service.py  # EDF processing + live study creation
+│   ├── device_service.py # Pi device CRUD
+│   ├── config_service.py # Generate Pi config from patient profile
+│   └── export_service.py # CSV/JSON export
+├── server/               # WebSocket server (FastAPI)
+│   ├── ws_server.py      # WS endpoint + REST API
+│   ├── device_manager.py # Active connection registry
+│   └── ingestion_service.py  # Pi features → DB
+├── pi/                   # Raspberry Pi client
+│   ├── pi_main.py        # Entry point + streaming controller
+│   ├── pi_config.py      # Config loader/cache
+│   └── ws_client.py      # Async WS client with auto-reconnect
+└── app/                  # Streamlit physician dashboard
+    ├── physician_app.py  # Home page (patient list + creation)
+    └── pages/
+        ├── 1_Dashboard.py    # Charts: Q-score, P-value, MO count, hourly summary
+        ├── 2_New_Study.py    # EDF upload or Pi live study
+        ├── 3_Export.py       # CSV/JSON export
+        └── 4_Devices.py      # Pi device management
+```
 
 ## Installation
 
-### Prerequisites
-- Python 3.9 or higher
-- OpenBCI Cyton board with RFduino dongle
-- macOS, Linux, or Windows
+```bash
+# Clone and setup
+git clone <repo-url>
+cd capstone
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-### Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/myles-fb/EEG-Sleep-Monitor.git
-   cd EEG-Sleep-Monitor
-   ```
-
-2. **Create a virtual environment** (recommended):
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Verify your serial port**:
-   - **macOS**: `/dev/cu.usbserial-*` (use `cu.*` not `tty.*`)
-   - **Linux**: `/dev/ttyUSB*` or `/dev/ttyACM*`
-   - **Windows**: `COM3`, `COM4`, etc.
+Requirements: Python 3.9+, OpenBCI Cyton board (for live streaming).
 
 ## Usage
 
-### Running the Streamlit Dashboard
+### Physician Dashboard (EDF mode — no hardware needed)
 
-1. **Start the dashboard**:
-   ```bash
-   streamlit run src/app/streamlit_app.py
-   ```
+```bash
+streamlit run src/app/physician_app.py
+```
 
-2. **Configure in the sidebar**:
-   - Enter your serial port (e.g., `/dev/cu.usbserial-DM02583G`)
-   - Select channel to visualize (0-7)
-   - Enable filters if needed (60 Hz notch, bandpass)
-   - Adjust buffer size (10-60 seconds)
+Create a patient, upload an EDF file on the New Study page, view results on the Dashboard.
 
-3. **Start streaming**:
-   - Click "▶️ Start" button
-   - Wait for connection (may take 2-3 seconds)
-   - View real-time EEG data and metrics
+### Full System (Pi live streaming)
 
-4. **Stop streaming**:
-   - Click "⏹️ Stop" button
-   - Stream will disconnect cleanly
+Start both the WebSocket server and Streamlit dashboard:
 
-## Future Enhancements
+```bash
+./scripts/start_server.sh
+```
 
-- [ ] Multi-channel visualization
-- [ ] Real-time spectrogram (waterfall plot)
-- [ ] Event detection and alerts
-- [ ] Data replay mode
-- [ ] Multi-patient support
-- [ ] Database integration
-- [ ] CAP (Cyclic Alternating Pattern) detection
-- [ ] Modulatory oscillation analysis
+Or separately:
 
-## Documentation
+```bash
+# Terminal 1: WebSocket server
+cd src && uvicorn server.ws_server:app --host 0.0.0.0 --port 8765
 
-- [Data Pipeline Architecture](documentation/data_pipeline.md)
-- [Project Plan](documentation/plan.md)
-- [Git Workflow](documentation/sprints.md)
+# Terminal 2: Streamlit dashboard
+streamlit run src/app/physician_app.py
+```
+
+On the Raspberry Pi:
+
+```bash
+cd src && python -m pi.pi_main \
+    --serial-port /dev/ttyUSB0 \
+    --server ws://SERVER_IP:8765/ws/pi/DEVICE_ID \
+    --device-id DEVICE_ID
+```
+
+For testing without hardware (synthetic EEG):
+
+```bash
+cd src && python -m pi.pi_main \
+    --synthetic \
+    --server ws://localhost:8765/ws/pi/pi-test \
+    --device-id pi-test
+```
+
+### Standalone Acquisition
+
+```bash
+python src/acquisition/brainflow_stream.py --serial-port /dev/cu.usbserial-DM02583G
+```
+
+### Batch MO Processing
+
+```bash
+python scripts/run_mos_edf_pipeline.py --input-dir /path/to/edfs --output-dir /path/to/results 
+```
+
+## Testing
+
+```bash
+python -m pytest tests/test_mos.py -v
+```
+
+10 tests covering the MO pipeline end-to-end (bipolar montage, spectrogram, surrogates, band envelopes, GESD, LASSO, q-value, p-value, multi-channel).
+
+## Pi Deployment
+
+Copy the systemd unit file for auto-start on boot:
+
+```bash
+sudo cp pi/eeg_streamer.service /etc/systemd/system/
+# Edit the file to set SERVER_IP and DEVICE_ID
+sudo systemctl enable eeg_streamer
+sudo systemctl start eeg_streamer
+```
+
+## Configuration
+
+- **Algorithm window**: 2, 5, or 10 minutes (per patient, default 5 min)
+- **Dashboard bucket**: 30 min, 1 hr, or 2 hr aggregation (default 1 hr)
+- **Sample rate**: 250 Hz (Cyton standard)
+- **Frequency bands**: delta (0.5-4), theta (4-8), alpha (8-13), beta (13-30), gamma (30-100) Hz
+- **MO bands**: 0.5-3, 3-8, 8-15, 15-30 Hz
 
 ## License
 
-Apache-2.0 License
+Apache-2.0
 
 ## Acknowledgments
 
-- [BrainFlow](https://github.com/brainflow-dev/brainflow) for EEG board integration
-- [OpenBCI](https://openbci.com/) for the Cyton board
-- [Streamlit](https://streamlit.io/) for the dashboard framework
-
-## contact
-
-For questions or support, please open an issue on the GitHub repository.
-
----
-
-**Note**: This is an MVP (Minimum Viable Product) for local, single-patient EEG monitoring. Future versions may include multi-patient support, cloud integration, and advanced sleep analysis features.
+- [BrainFlow](https://github.com/brainflow-dev/brainflow) — EEG board integration
+- [OpenBCI](https://openbci.com/) — Cyton hardware
+- [Streamlit](https://streamlit.io/) — Dashboard framework
+- [FastAPI](https://fastapi.tiangolo.com/) — WebSocket server

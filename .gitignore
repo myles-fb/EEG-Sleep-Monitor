@@ -21,6 +21,7 @@ __pycache__/
 .Trashes
 ehthumbs.db
 Thumbs.db
+*.db
 
 # IDE
 .vscode/
@@ -35,5 +36,11 @@ logs/
 src/acquisition/logs/
 
 # Data files (optional - uncomment if you don't want to track data)
-# *.csv
-# *.parquet
+*.csv
+*.edf
+*.png
+*.json
+*.m
+*.npz
+# Test outputs
+test_outputs/
