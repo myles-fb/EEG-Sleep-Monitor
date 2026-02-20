@@ -69,8 +69,9 @@ def create_spectrogram_heatmap(
     fig.update_layout(
         title=title,
         xaxis=dict(title="Time (min)", rangeslider=dict(visible=True)),
-        yaxis=dict(title="Frequency (Hz)"),
+        yaxis=dict(title="Frequency (Hz)", range=[0, f_max], autorange=False),
         height=400,
+        margin=dict(l=60, r=20, t=40, b=60),
     )
     return fig
 
