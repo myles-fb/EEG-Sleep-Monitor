@@ -67,14 +67,15 @@ streamlit run src/app/physician_app.py
 
 ## Tasks Completed This Session
 - [x] Plan written
-- [ ] Task 1: Create branch
-- [ ] Task 2: Fix windowing bug
-- [ ] Task 3: Fix spectrogram x-axis
-- [ ] Task 4: Add significance Q-heatmap
-- [ ] Task 5: Add envelope spectrogram
-- [ ] Task 6: Add band-limited + channel-averaged spectrograms
-- [ ] Task 7: Add dominant freq chart
-- [ ] Task 8: Renumber pages
-- [ ] Task 9: Rewrite 1_Dashboard.py as Summary
-- [ ] Task 10: Create 2_Per_Channel.py
-- [ ] Task 11: Final verification
+- [x] Task 1: Create branch (dashboard-redesign)
+- [x] Task 2: Fix windowing bug (ffabb42)
+- [x] Task 3: Fix spectrogram x-axis (973b338)
+- [x] Task 4-7: Add all new viz helpers (cf14b8f)
+- [x] Task 8: Renumber pages (6042d4d)
+- [x] Task 9: Rewrite 1_Dashboard.py as Summary (42f4089)
+- [x] Task 10: Create 2_Per_Channel.py (ea3adb3)
+- [x] Task 11: Final verification — 25/25 tests passing
+
+## Final State
+All commits on branch `dashboard-redesign`. 25 tests pass.
+To continue: `git checkout dashboard-redesign` then open session in /Users/mylesfb/Code/capstone.
