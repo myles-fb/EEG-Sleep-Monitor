@@ -82,6 +82,28 @@ streamlit run src/app/physician_app.py
 - **Dominant freq chart was unaffected** — it's a Scatter (no rangeslider), which confirmed the root cause.
 - **Rule:** Never add `rangeslider` to Heatmap figures. Plotly's built-in zoom/pan toolbar handles navigation.
 
+## 2nd-Order Envelope Spectrograms (commit 5bcb0cb)
+
+### What Eq (1) means
+S̄_{k,ρ}(t) = (1/|F_ρ|) Σ_{f ∈ F_ρ} S_k(f,t) — mean spectrogram power over band ρ at each time step.
+This IS the `env_{band}` stored in NPZ files (computed by `extract_band_envelope` in mos.py).
+
+### 2nd-order spectrogram parameters (from paper Sec. 4)
+- Window: Tw = 30s → 5 samples at Fs_env = 1/6 Hz
+- Step: 6s → 1 sample (noverlap = 4)
+- nfft = 64 for smoother display (zero-padded; true resolution = 33 mHz)
+- Y-axis: millihertz (mHz), range 0–100 mHz
+- `create_envelope_spectrogram(T, envelope, title, f_max_mhz=100.0)`
+
+### f_min fix for band-limited spectrograms
+- `create_spectrogram_heatmap` now accepts `f_min=0.0` param
+- `range=[f_min, f_max]` on y-axis — band spectrograms no longer show empty space below band
+- `create_band_limited_spectrogram` passes `f_min=f_low` automatically
+
+### Summary page additions (Section 2 after channel-averaged spectrogram)
+- Envelope spectrograms section: averages envelopes across selected channels, 2x2 grid
+- Caption explains Eq (1) and paper parameters
+
 ## Final State
-All commits on `main` (472ef87). 25 tests pass.
+All commits on `main` (5bcb0cb). 25 tests pass.
 Pages: 1_Dashboard (Summary), 2_Per_Channel, 3_New_Study, 4_Export, 5_Devices.

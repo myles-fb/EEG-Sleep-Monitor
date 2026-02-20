@@ -18,10 +18,16 @@ BAND_FREQS    # dict: band_key -> (f_low, f_high) Hz
 
 ### Figure builders
 ```python
-create_spectrogram_heatmap(S, T, F, title, f_max=40.0, log_scale=True)
+create_spectrogram_heatmap(S, T, F, title, f_max=40.0, f_min=0.0, log_scale=True)
+# f_min sets the y-axis lower bound — pass band f_low for band-limited views
+
 create_q_heatmap_with_significance(timestamps, q_data, p_data, p_cutoff=0.05, title)
-create_envelope_spectrogram(T, envelope, title, f_max_hz=0.05)
+create_envelope_spectrogram(T, envelope, title, f_max_mhz=100.0)
+# 2nd-order spectrogram per Eq (1) Loe et al. 2022; y-axis in mHz
+
 create_band_limited_spectrogram(S, T, F, band_key, title, log_scale=True)
+# Automatically sets f_min=f_low so y-axis starts at band lower bound, not 0
+
 create_channel_averaged_spectrogram(spec_data_list, title, f_max=40.0, log_scale=True)
 create_dominant_freq_chart(dom_freq_data, title)
 ```
