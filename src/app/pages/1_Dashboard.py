@@ -26,6 +26,7 @@ from services.spectrogram_service import list_available_channels, load_full_spec
 from app.viz_helpers import (
     create_q_heatmap_with_significance,
     create_channel_averaged_spectrogram,
+    create_envelope_spectrogram,
     create_dominant_freq_chart,
     BAND_DISPLAY,
     BAND_COLORS,
@@ -235,7 +236,60 @@ else:
             st.warning("Could not load spectrogram data.")
 
 # ---------------------------------------------------------------------------
-# Section 2: Q-Score Heatmaps (one per channel)
+# Section 2: Envelope Spectrograms (2nd-order, Eq. 1 — Loe et al. 2022)
+# ---------------------------------------------------------------------------
+
+st.subheader("Envelope Spectrograms")
+st.caption(
+    "2nd-order spectrograms of the band-limited power envelope S̄(t) (Eq. 1). "
+    "Computed with Tᵥᵥ = 30 s window, 6 s step. Y-axis: modulation frequency (mHz)."
+)
+
+if not spec_channels:
+    st.info("No spectrogram data available. Enable spectrogram saving when creating the study.")
+elif not selected_bands:
+    st.info("Select at least one band in the sidebar.")
+else:
+    # Load envelopes for the selected channels and average across them
+    ch_to_load = [ci for ci in (selected_channels or all_ch_indices) if ci in spec_channels]
+    if not ch_to_load:
+        st.warning("No spectrogram data for the selected channels.")
+    else:
+        # Collect per-band averaged envelopes
+        # spec_data_list may already be loaded above; reload here to keep sections independent
+        env_spec_data: dict = {}  # band -> (T, avg_envelope)
+        for band in selected_bands:
+            env_key = f"env_{band}"
+            envs, T_ref = [], None
+            for ci in ch_to_load:
+                d = load_full_spectrogram(selected_sid, ci)
+                if d is not None and env_key in d:
+                    envs.append(d[env_key])
+                    if T_ref is None:
+                        T_ref = d["T"]
+            if envs and T_ref is not None:
+                avg_env = np.mean(np.stack(envs, axis=0), axis=0)
+                env_spec_data[band] = (T_ref, avg_env)
+
+        if not env_spec_data:
+            st.info("No envelope data found. Ensure the study was processed with spectrogram saving enabled.")
+        else:
+            cols_per_row = 2
+            band_list = list(env_spec_data.keys())
+            for row_start in range(0, len(band_list), cols_per_row):
+                row_bands = band_list[row_start:row_start + cols_per_row]
+                cols = st.columns(len(row_bands))
+                for col, band in zip(cols, row_bands):
+                    with col:
+                        T_env, avg_env = env_spec_data[band]
+                        fig_env = create_envelope_spectrogram(
+                            T_env, avg_env,
+                            title=f"Envelope Spectrogram — {BAND_DISPLAY.get(band, band)}",
+                        )
+                        st.plotly_chart(fig_env, use_container_width=True)
+
+# ---------------------------------------------------------------------------
+# Section 3: Q-Score Heatmaps (one per channel)
 # ---------------------------------------------------------------------------
 
 st.subheader("Q-Score Heatmaps")

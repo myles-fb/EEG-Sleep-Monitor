@@ -41,18 +41,21 @@ def create_spectrogram_heatmap(
     F: np.ndarray,
     title: str = "Spectrogram",
     f_max: float = 40.0,
+    f_min: float = 0.0,
     log_scale: bool = True,
 ) -> "go.Figure":
-    """Create a scrollable spectrogram heatmap with rangeslider.
+    """Create a spectrogram heatmap.
 
     Args:
         S: (n_times, n_freqs) power array.
         T: (n_times,) time in seconds.
         F: (n_freqs,) frequency in Hz.
-        f_max: crop display to this frequency.
+        f_max: crop display to this frequency (Hz).
+        f_min: y-axis lower bound (Hz). Defaults to 0. Set to band f_low
+            for band-limited spectrograms so the axis starts at the band edge.
         log_scale: apply log10 to power values.
     """
-    freq_mask = F <= f_max
+    freq_mask = (F >= f_min) & (F <= f_max)
     S_plot = S[:, freq_mask]
     F_plot = F[freq_mask]
     T_min = T / 60.0  # convert to minutes
@@ -69,7 +72,7 @@ def create_spectrogram_heatmap(
     fig.update_layout(
         title=title,
         xaxis=dict(title="Time (min)"),
-        yaxis=dict(title="Frequency (Hz)", range=[0, f_max], autorange=False),
+        yaxis=dict(title="Frequency (Hz)", range=[f_min, f_max], autorange=False),
         height=400,
         margin=dict(l=60, r=20, t=40, b=60),
     )
@@ -307,43 +310,56 @@ def create_envelope_spectrogram(
     T: np.ndarray,
     envelope: np.ndarray,
     title: str = "Envelope Spectrogram",
-    f_max_hz: float = 0.05,
+    f_max_mhz: float = 100.0,
 ) -> "go.Figure":
-    """2nd-order spectrogram: spectrogram of a band envelope signal.
+    """2nd-order spectrogram of the band-limited spectral envelope (Eq. 1, Loe et al. 2022).
 
-    The envelope is stored at spectrogram time resolution (step = 6 s,
-    Fs_env ~= 1/6 Hz). The output shows modulation frequencies up to
-    f_max_hz (default 0.05 Hz = 20-second period oscillations).
+    The band-limited spectral envelope S̄_{k,ρ}(t) is the mean spectrogram power
+    over frequency band ρ at each time step (stored as env_{band} in NPZ files,
+    sampled at f_s = 1/6 Hz due to the 6 s spectrogram step).
+
+    This function applies multi-taper spectral estimation to that envelope using
+    the paper's specified parameters: Tw = 30 s window (5 samples at 1/6 Hz),
+    6 s step (1-sample advance, 4-sample overlap). Frequency axis is displayed
+    in millihertz (mHz) to match Fig. 1F/G in the paper.
 
     Args:
-        T: (n_times,) time vector in seconds (global, from NPZ).
-        envelope: (n_times,) band envelope values.
+        T: (n_times,) global time vector in seconds (from NPZ).
+        envelope: (n_times,) band-limited power envelope (Eq. 1).
         title: chart title.
-        f_max_hz: max modulation frequency to display (Hz).
+        f_max_mhz: upper bound for displayed modulation frequency (mHz). Default 100.
     """
     from scipy.signal import spectrogram as sp_spectrogram
 
-    if T.size < 4:
+    if T.size < 5:
         fig = go.Figure()
         fig.update_layout(title=f"{title} (insufficient data)", height=250)
         return fig
 
     dt = float(T[1] - T[0]) if T.size > 1 else 6.0
-    Fs_env = 1.0 / dt
+    Fs_env = 1.0 / dt  # ~1/6 Hz
 
-    nperseg = max(4, min(len(envelope) // 4, 64))
-    noverlap = nperseg // 2
+    # Paper parameters: Tw = 30 s → 5 samples; step = 6 s → 1 sample (24 s overlap)
+    nperseg = max(4, round(30.0 * Fs_env))
+    step_samples = max(1, round(6.0 * Fs_env))
+    noverlap = nperseg - step_samples
+
+    # Zero-pad for smoother frequency interpolation in display (does not improve resolution)
+    nfft = max(nperseg, 64)
 
     f_env, t_env, Sxx = sp_spectrogram(
         envelope,
         fs=Fs_env,
         nperseg=nperseg,
         noverlap=noverlap,
+        nfft=nfft,
         window="hann",
     )
 
-    freq_mask = f_env <= f_max_hz
-    f_display = f_env[freq_mask]
+    # Convert to mHz and crop to display range
+    f_mhz = f_env * 1000.0
+    freq_mask = f_mhz <= f_max_mhz
+    f_display_mhz = f_mhz[freq_mask]
     Sxx_display = Sxx[freq_mask, :]
 
     t_global_min = (T[0] + t_env) / 60.0
@@ -352,14 +368,14 @@ def create_envelope_spectrogram(
     fig = go.Figure(go.Heatmap(
         z=z,
         x=t_global_min,
-        y=f_display,
+        y=f_display_mhz,
         colorscale="Viridis",
         colorbar=dict(title="log10(Power)"),
     ))
     fig.update_layout(
         title=title,
         xaxis=dict(title="Time (min)"),
-        yaxis=dict(title="Modulation Freq (Hz)", autorange=False, range=[0, f_max_hz]),
+        yaxis=dict(title="Modulation Freq (mHz)", autorange=False, range=[0, f_max_mhz]),
         height=300,
         margin=dict(l=60, r=20, t=40, b=50),
     )
@@ -389,7 +405,7 @@ def create_band_limited_spectrogram(
         title = f"Power Spectrogram — {BAND_DISPLAY.get(band_key, band_key)}"
     mask = (F >= f_low) & (F <= f_high)
     return create_spectrogram_heatmap(
-        S[:, mask], T, F[mask], title=title, f_max=f_high, log_scale=log_scale
+        S[:, mask], T, F[mask], title=title, f_max=f_high, f_min=f_low, log_scale=log_scale
     )
 
 
