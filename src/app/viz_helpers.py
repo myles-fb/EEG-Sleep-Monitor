@@ -68,7 +68,7 @@ def create_spectrogram_heatmap(
     ))
     fig.update_layout(
         title=title,
-        xaxis=dict(title="Time (min)", rangeslider=dict(visible=True)),
+        xaxis=dict(title="Time (min)"),
         yaxis=dict(title="Frequency (Hz)", range=[0, f_max], autorange=False),
         height=400,
         margin=dict(l=60, r=20, t=40, b=60),
@@ -104,7 +104,7 @@ def create_band_envelope_plot(
         ))
     fig.update_layout(
         title=title,
-        xaxis=dict(title="Time (min)", rangeslider=dict(visible=True)),
+        xaxis=dict(title="Time (min)"),
         yaxis=dict(title="Envelope Power"),
         height=350,
         legend=dict(orientation="h", y=-0.3),
@@ -156,7 +156,7 @@ def create_q_heatmap(
 
     fig.update_layout(
         title=title,
-        xaxis=dict(title="Time (min)", rangeslider=dict(visible=True)),
+        xaxis=dict(title="Time (min)"),
         height=300,
     )
     return fig
@@ -295,8 +295,10 @@ def create_q_heatmap_with_significance(
     ))
     fig.update_layout(
         title=title,
-        xaxis=dict(title="Time (min)", rangeslider=dict(visible=True)),
+        xaxis=dict(title="Time (min)"),
+        yaxis=dict(automargin=True),
         height=300,
+        margin=dict(l=60, r=20, t=40, b=50),
     )
     return fig
 
@@ -356,10 +358,10 @@ def create_envelope_spectrogram(
     ))
     fig.update_layout(
         title=title,
-        xaxis=dict(title="Time (min)", rangeslider=dict(visible=True)),
+        xaxis=dict(title="Time (min)"),
         yaxis=dict(title="Modulation Freq (Hz)", autorange=False, range=[0, f_max_hz]),
         height=300,
-        margin=dict(l=60, r=20, t=40, b=60),
+        margin=dict(l=60, r=20, t=40, b=50),
     )
     return fig
 
