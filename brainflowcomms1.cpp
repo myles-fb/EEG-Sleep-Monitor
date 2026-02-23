@@ -52,3 +52,9 @@ int main() {
 
     return 0;
 }
+/*Compile using g++ main3.cpp     
+	-I ~/brainflow/installed/inc    
+	-L ~/brainflow/installed/lib     
+	-lBrainflow -lBoardController -lDataHandler -lpthread     
+	-o cyton_brainflow3
+*/
