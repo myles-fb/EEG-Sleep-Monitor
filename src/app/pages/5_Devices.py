@@ -20,7 +20,7 @@ init_db()
 st.set_page_config(page_title="Devices", page_icon="📡", layout="wide")
 st.title("Device Management")
 
-FASTAPI_URL = "http://localhost:8765"
+from app.config import FASTAPI_URL
 
 # ---------------------------------------------------------------------------
 # Helper: fetch live device status from FastAPI

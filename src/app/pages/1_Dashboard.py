@@ -32,7 +32,7 @@ from app.viz_helpers import (
     BAND_COLORS,
 )
 
-FASTAPI_URL = "http://localhost:8765"
+from app.config import FASTAPI_URL
 MO_BANDS = ["0.5_3hz", "3_8hz", "8_15hz", "15_30hz"]
 
 init_db()
@@ -49,13 +49,17 @@ if not patients:
     st.info("No patients found. Create one on the Home page.")
     st.stop()
 
+patient_ids = [p.id for p in patients]
 patient_names = {p.id: p.name for p in patients}
+_stored_pid = st.session_state.get("_persist_patient_id")
+_pid_idx = patient_ids.index(_stored_pid) if _stored_pid in patient_ids else 0
 selected_pid = st.sidebar.selectbox(
     "Select Patient",
-    options=[p.id for p in patients],
+    options=patient_ids,
+    index=_pid_idx,
     format_func=lambda pid: patient_names[pid],
-    key="shared_patient_id",
 )
+st.session_state["_persist_patient_id"] = selected_pid
 
 patient = patient_service.get_patient(selected_pid)
 if patient is None:
@@ -67,13 +71,17 @@ if not studies:
     st.info(f"No studies for **{patient.name}**. Start one on the New Study page.")
     st.stop()
 
+study_ids = [s.id for s in studies]
 study_labels = {s.id: f"{s.source_file or s.source} — {s.status}" for s in studies}
+_stored_sid = st.session_state.get("_persist_study_id")
+_sid_idx = study_ids.index(_stored_sid) if _stored_sid in study_ids else 0
 selected_sid = st.sidebar.selectbox(
     "Select Study",
-    options=[s.id for s in studies],
+    options=study_ids,
+    index=_sid_idx,
     format_func=lambda sid: study_labels[sid],
-    key="shared_study_id",
 )
+st.session_state["_persist_study_id"] = selected_sid
 
 study = study_service.get_study(selected_sid)
 
@@ -120,13 +128,15 @@ if study.source == "pi" and study.status == "active":
 
 st.sidebar.divider()
 st.sidebar.markdown("**Feature Sets**")
+_stored_fs = st.session_state.get("_persist_dash_feature_sets")
+_fs_default = [f for f in (_stored_fs or ["MOs"]) if f in ["MOs", "CAP (coming soon)"]] or ["MOs"]
 feature_sets = st.sidebar.multiselect(
     "Active feature sets",
     options=["MOs", "CAP (coming soon)"],
-    default=["MOs"],
+    default=_fs_default,
     help="Select which feature sets to display.",
-    key="dash_feature_sets",
 )
+st.session_state["_persist_dash_feature_sets"] = feature_sets
 show_mos = "MOs" in feature_sets
 
 # ---------------------------------------------------------------------------
@@ -143,36 +153,41 @@ ch_options_fmt = {ci: ch_label_map.get(ci, f"Ch {ci}") for ci in all_ch_indices}
 
 if all_ch_indices:
     st.sidebar.divider()
+    _stored_chs = st.session_state.get("_persist_dash_channels")
+    _chs_default = [c for c in (_stored_chs or all_ch_indices) if c in all_ch_indices] or all_ch_indices
     selected_channels = st.sidebar.multiselect(
         "Channels (averaged spectrogram)",
         options=all_ch_indices,
-        default=all_ch_indices,
+        default=_chs_default,
         format_func=lambda ci: ch_options_fmt.get(ci, f"Ch {ci}"),
-        key="dash_channels",
     )
+    st.session_state["_persist_dash_channels"] = selected_channels
 else:
     selected_channels = []
 
 st.sidebar.divider()
+_stored_bands = st.session_state.get("_persist_dash_bands")
+_bands_default = [b for b in (_stored_bands or MO_BANDS) if b in MO_BANDS] or MO_BANDS
 selected_bands = st.sidebar.multiselect(
     "Bands",
     options=MO_BANDS,
-    default=MO_BANDS,
+    default=_bands_default,
     format_func=lambda b: BAND_DISPLAY.get(b, b),
-    key="dash_bands",
 )
+st.session_state["_persist_dash_bands"] = selected_bands
 
 st.sidebar.divider()
 st.sidebar.markdown("**Envelope Spectrogram Window**")
 _FS_ENV = 1.0 / 6.0  # Hz — fixed by first-order spectrogram step
+_stored_env = st.session_state.get("_persist_env_window_min", 40)
 env_window_min = st.sidebar.slider(
     "Window length (min)",
     min_value=5,
     max_value=60,
-    value=40,
+    value=_stored_env,
     step=5,
-    key="shared_env_window_min",
 )
+st.session_state["_persist_env_window_min"] = env_window_min
 env_window_samples = round(env_window_min * 60 * _FS_ENV)
 _env_step_samples = max(1, env_window_samples // 4)
 _freq_res_mhz = (_FS_ENV / env_window_samples) * 1000.0
@@ -184,16 +199,17 @@ st.sidebar.caption(
 )
 
 st.sidebar.divider()
+_stored_p = st.session_state.get("_persist_dash_p_cutoff", 0.05)
 p_cutoff = st.sidebar.slider(
     "P-value cutoff",
     min_value=0.001,
     max_value=0.5,
-    value=0.05,
+    value=_stored_p,
     step=0.001,
     format="%.3f",
     help="Cells where p >= cutoff are shown in gray.",
-    key="dash_p_cutoff",
 )
+st.session_state["_persist_dash_p_cutoff"] = p_cutoff
 
 # ---------------------------------------------------------------------------
 # Early exit if no feature sets selected

@@ -27,7 +27,7 @@ init_db()
 st.set_page_config(page_title="New Study", page_icon="🔬", layout="wide")
 st.title("Start New Study")
 
-FASTAPI_URL = "http://localhost:8765"
+from app.config import FASTAPI_URL
 
 # ---------------------------------------------------------------------------
 # Patient selection

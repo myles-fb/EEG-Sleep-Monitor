@@ -1,6 +1,7 @@
 """Save and load per-window spectrogram data as compressed NPZ files."""
 
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -8,7 +9,8 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data" / "spectrograms"
+_DEFAULT_DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data" / "spectrograms"
+DATA_ROOT = Path(os.environ.get("SPECTROGRAM_DATA_DIR", str(_DEFAULT_DATA_ROOT)))
 
 
 def _window_path(study_id: str, window_index: int, channel_index: int) -> Path:

@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  eeg-server:
+    build: .
+    ports:
+      - "${FASTAPI_PORT:-8765}:8765"
+      - "${STREAMLIT_PORT:-8501}:8501"
+    volumes:
+      - eeg-data:/app/data
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////app/data/physician.db}
+      - FASTAPI_URL=${FASTAPI_URL:-http://localhost:8765}
+      - FASTAPI_PORT=8765
+      - STREAMLIT_PORT=8501
+      - SPECTROGRAM_DATA_DIR=/app/data/spectrograms
+    restart: unless-stopped
+
+volumes:
+  eeg-data:
+    driver: local

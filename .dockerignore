@@ -1,0 +1,15 @@
+.venv/
+.git/
+.pytest_cache/
+__pycache__/
+*.pyc
+data/
+.DS_Store
+*.edf
+output/
+mos_results/
+documentation/
+docs/
+tests/
+.claude/
+brainflowcomms1.cpp
