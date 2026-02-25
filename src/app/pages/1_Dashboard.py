@@ -54,6 +54,7 @@ selected_pid = st.sidebar.selectbox(
     "Select Patient",
     options=[p.id for p in patients],
     format_func=lambda pid: patient_names[pid],
+    key="shared_patient_id",
 )
 
 patient = patient_service.get_patient(selected_pid)
@@ -71,6 +72,7 @@ selected_sid = st.sidebar.selectbox(
     "Select Study",
     options=[s.id for s in studies],
     format_func=lambda sid: study_labels[sid],
+    key="shared_study_id",
 )
 
 study = study_service.get_study(selected_sid)
@@ -123,6 +125,7 @@ feature_sets = st.sidebar.multiselect(
     options=["MOs", "CAP (coming soon)"],
     default=["MOs"],
     help="Select which feature sets to display.",
+    key="dash_feature_sets",
 )
 show_mos = "MOs" in feature_sets
 
@@ -145,6 +148,7 @@ if all_ch_indices:
         options=all_ch_indices,
         default=all_ch_indices,
         format_func=lambda ci: ch_options_fmt.get(ci, f"Ch {ci}"),
+        key="dash_channels",
     )
 else:
     selected_channels = []
@@ -155,6 +159,7 @@ selected_bands = st.sidebar.multiselect(
     options=MO_BANDS,
     default=MO_BANDS,
     format_func=lambda b: BAND_DISPLAY.get(b, b),
+    key="dash_bands",
 )
 
 st.sidebar.divider()
@@ -166,6 +171,7 @@ p_cutoff = st.sidebar.slider(
     step=0.001,
     format="%.3f",
     help="Cells where p >= cutoff are shown in gray.",
+    key="dash_p_cutoff",
 )
 
 # ---------------------------------------------------------------------------

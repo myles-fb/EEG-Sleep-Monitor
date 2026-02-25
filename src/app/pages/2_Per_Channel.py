@@ -55,6 +55,7 @@ selected_pid = st.sidebar.selectbox(
     "Select Patient",
     options=[p.id for p in patients],
     format_func=lambda pid: patient_names[pid],
+    key="shared_patient_id",
 )
 
 patient = patient_service.get_patient(selected_pid)
@@ -72,6 +73,7 @@ selected_sid = st.sidebar.selectbox(
     "Select Study",
     options=[s.id for s in studies],
     format_func=lambda sid: study_labels[sid],
+    key="shared_study_id",
 )
 
 study = study_service.get_study(selected_sid)
@@ -92,6 +94,7 @@ feature_sets = st.sidebar.multiselect(
     "Feature Sets",
     options=["MOs", "CAP (coming soon)"],
     default=["MOs"],
+    key="per_ch_feature_sets",
 )
 show_mos = "MOs" in feature_sets
 
@@ -114,6 +117,7 @@ selected_ch = st.sidebar.selectbox(
     "Channel",
     options=all_ch_indices,
     format_func=lambda ci: ch_label_map.get(ci, f"Ch {ci}"),
+    key="per_ch_channel",
 )
 ch_label = ch_label_map.get(selected_ch, f"Ch {selected_ch}")
 
@@ -124,6 +128,7 @@ selected_bands = st.sidebar.multiselect(
     options=MO_BANDS,
     default=MO_BANDS,
     format_func=lambda b: BAND_DISPLAY.get(b, b),
+    key="per_ch_bands",
 )
 
 # Envelope spectrogram window control
@@ -138,6 +143,7 @@ env_window_min = st.sidebar.slider(
     max_value=60,
     value=40,
     step=5,
+    key="per_ch_env_window_min",
 )
 env_window_samples = round(env_window_min * 60 * _FS_ENV)
 _env_step_samples = max(1, env_window_samples // 4)
@@ -158,6 +164,7 @@ p_cutoff = st.sidebar.slider(
     value=0.05,
     step=0.001,
     format="%.3f",
+    key="per_ch_p_cutoff",
 )
 
 # ---------------------------------------------------------------------------
