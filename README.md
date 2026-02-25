@@ -142,13 +142,58 @@ python -m pytest tests/test_mos.py -v
 
 10 tests covering the MO pipeline end-to-end (bipolar montage, spectrogram, surrogates, band envelopes, GESD, LASSO, q-value, p-value, multi-channel).
 
-## Pi Deployment
+## Deployment
 
-Copy the systemd unit file for auto-start on boot:
+### Docker (local or any host)
+
+```bash
+docker compose up --build
+```
+
+This starts both the FastAPI WebSocket server (port 8765) and the Streamlit dashboard (port 8501) with a persistent volume for data.
+
+### Railway (recommended for remote Pi streaming)
+
+Railway is the recommended deployment platform. See [docs/pi-setup-guide.md](docs/pi-setup-guide.md) for full Pi setup instructions.
+
+1. Push the `deploy/pi-streaming` branch to GitHub
+2. Create a Railway project, connect the repo
+3. Add a PostgreSQL plugin (Railway auto-injects `DATABASE_URL`)
+4. Set env vars: `FASTAPI_URL=http://localhost:8765`, `FASTAPI_PORT=8765`, `STREAMLIT_PORT=8501`
+5. Generate a public domain (routes to Streamlit on 8501) and enable TCP proxy (routes to WebSocket on 8765)
+6. On the Pi: `python -m pi.pi_main --server wss://your-app.proxy.rlwy.net:PORT/ws/pi/DEVICE_ID --device-id DEVICE_ID`
+
+#### Why Railway over other platforms
+
+| Platform | Pros | Cons |
+|----------|------|------|
+| **Railway** (chosen) | One-click GitHub deploy, managed PostgreSQL addon, two-port support via TCP proxy, auto-HTTPS, ~$5/mo | Free tier has hour limits |
+| **Render** | Git-based deploys, managed PostgreSQL | Single port per service — needs nginx or two services for FastAPI + Streamlit. Free tier spins down after 15 min, dropping WebSocket connections |
+| **Fly.io** | Persistent volumes (SQLite works), good WS support | CLI-driven, steeper learning curve, same single-port constraint |
+| **DigitalOcean / VPS** | Full control, no port restrictions, $5/mo | Manual Docker install, firewall, SSL/certbot, OS updates — heavy ops for a capstone |
+| **ngrok / Cloudflare Tunnel** | Zero setup, instant | Not persistent — stops when machine sleeps, URLs change on restart. Unusable for overnight monitoring |
+
+Railway provides the shortest path from "code on GitHub" to "Pi streaming to a public server" — managed PostgreSQL with zero config, Dockerfile auto-detection, and two-port support without a reverse proxy.
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `sqlite:///data/physician.db` | Database connection string. Set to `postgresql://...` for production |
+| `FASTAPI_URL` | `http://localhost:8765` | FastAPI URL as seen by the Streamlit server process |
+| `FASTAPI_PORT` | `8765` | WebSocket server port |
+| `STREAMLIT_PORT` | `8501` | Dashboard port |
+| `SPECTROGRAM_DATA_DIR` | `data/spectrograms` | Path for spectrogram NPZ file storage |
+
+### Pi Setup
+
+See [docs/pi-setup-guide.md](docs/pi-setup-guide.md) for a complete guide from unflashed SD card to live streaming.
+
+Quick start with systemd for auto-start on boot:
 
 ```bash
 sudo cp pi/eeg_streamer.service /etc/systemd/system/
-# Edit the file to set SERVER_IP and DEVICE_ID
+# Edit the file to set your server URL and device ID
 sudo systemctl enable eeg_streamer
 sudo systemctl start eeg_streamer
 ```
