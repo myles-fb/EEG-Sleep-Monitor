@@ -311,6 +311,7 @@ def create_envelope_spectrogram(
     envelope: np.ndarray,
     title: str = "Envelope Spectrogram",
     f_max_mhz: float = 100.0,
+    window_samples: int = 400,
 ) -> "go.Figure":
     """2nd-order spectrogram of the band-limited spectral envelope (Eq. 1, Loe et al. 2022).
 
@@ -318,16 +319,22 @@ def create_envelope_spectrogram(
     over frequency band ρ at each time step (stored as env_{band} in NPZ files,
     sampled at f_s = 1/6 Hz due to the 6 s spectrogram step).
 
-    This function applies multi-taper spectral estimation to that envelope using
-    the paper's specified parameters: Tw = 30 s window (5 samples at 1/6 Hz),
-    6 s step (1-sample advance, 4-sample overlap). Frequency axis is displayed
-    in millihertz (mHz) to match Fig. 1F/G in the paper.
+    To resolve mHz-scale MO modulation, the window must be long relative to the
+    envelope sampling rate. With Fs_env ≈ 1/6 Hz:
+      - frequency resolution = Fs_env / window_samples (Hz)
+      - e.g. window_samples=400 (40 min) → 0.42 mHz resolution
+
+    Step is set to window_samples // 4 (75 % overlap) to balance time resolution
+    and computation. Frequency axis is in millihertz (mHz) to match Fig. 1F/G.
 
     Args:
         T: (n_times,) global time vector in seconds (from NPZ).
         envelope: (n_times,) band-limited power envelope (Eq. 1).
         title: chart title.
         f_max_mhz: upper bound for displayed modulation frequency (mHz). Default 100.
+        window_samples: number of envelope samples per spectrogram window.
+            Larger → finer frequency resolution, coarser time resolution.
+            Default 400 (≈40 min at Fs_env=1/6 Hz, matching the paper's LASSO window).
     """
     from scipy.signal import spectrogram as sp_spectrogram
 
@@ -339,13 +346,12 @@ def create_envelope_spectrogram(
     dt = float(T[1] - T[0]) if T.size > 1 else 6.0
     Fs_env = 1.0 / dt  # ~1/6 Hz
 
-    # Paper parameters: Tw = 30 s → 5 samples; step = 6 s → 1 sample (24 s overlap)
-    nperseg = max(4, round(30.0 * Fs_env))
-    step_samples = max(1, round(6.0 * Fs_env))
+    nperseg = min(window_samples, max(4, len(envelope)))
+    step_samples = max(1, nperseg // 4)  # 75 % overlap
     noverlap = nperseg - step_samples
 
-    # Zero-pad for smoother frequency interpolation in display (does not improve resolution)
-    nfft = max(nperseg, 64)
+    # Zero-pad for smoother frequency display (does not improve spectral resolution)
+    nfft = max(nperseg, 256)
 
     f_env, t_env, Sxx = sp_spectrogram(
         envelope,

@@ -126,6 +126,29 @@ selected_bands = st.sidebar.multiselect(
     format_func=lambda b: BAND_DISPLAY.get(b, b),
 )
 
+# Envelope spectrogram window control
+# Fs_env is fixed at ~1/6 Hz (one sample per 6-second spectrogram step).
+# Larger window → finer frequency resolution, coarser time resolution.
+st.sidebar.divider()
+st.sidebar.markdown("**Envelope Spectrogram Window**")
+_FS_ENV = 1.0 / 6.0  # Hz — fixed by first-order spectrogram step
+env_window_min = st.sidebar.slider(
+    "Window length (min)",
+    min_value=5,
+    max_value=60,
+    value=40,
+    step=5,
+)
+env_window_samples = round(env_window_min * 60 * _FS_ENV)
+_env_step_samples = max(1, env_window_samples // 4)
+_freq_res_mhz = (_FS_ENV / env_window_samples) * 1000.0
+_time_res_min = (_env_step_samples / _FS_ENV) / 60.0
+st.sidebar.caption(
+    f"{env_window_samples} samples · "
+    f"Freq. resolution: **{_freq_res_mhz:.1f} mHz** · "
+    f"Time resolution: **{_time_res_min:.1f} min**"
+)
+
 # P-value cutoff
 st.sidebar.divider()
 p_cutoff = st.sidebar.slider(
@@ -225,6 +248,7 @@ else:
                         fig_env = create_envelope_spectrogram(
                             T, env,
                             title=f"Envelope Spectrogram — {BAND_DISPLAY.get(band, band)}",
+                            window_samples=env_window_samples,
                         )
                         st.plotly_chart(fig_env, use_container_width=True)
                     else:
