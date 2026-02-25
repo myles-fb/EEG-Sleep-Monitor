@@ -143,7 +143,7 @@ env_window_min = st.sidebar.slider(
     max_value=60,
     value=40,
     step=5,
-    key="per_ch_env_window_min",
+    key="shared_env_window_min",
 )
 env_window_samples = round(env_window_min * 60 * _FS_ENV)
 _env_step_samples = max(1, env_window_samples // 4)
