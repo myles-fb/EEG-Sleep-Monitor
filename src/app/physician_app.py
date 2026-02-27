@@ -16,7 +16,7 @@ if str(_src) not in sys.path:
 import streamlit as st
 import pandas as pd
 
-from models import init_db, Patient, Device  # noqa: F401 — Device import ensures table creation
+from models import init_db, Patient, Device, User  # noqa: F401 — imports ensure table creation
 from services import patient_service
 
 # ---------------------------------------------------------------------------
@@ -25,6 +25,10 @@ from services import patient_service
 
 st.set_page_config(page_title="EEG Sleep Monitor", page_icon="🧠", layout="wide")
 init_db()
+
+from app.auth import require_auth, show_user_sidebar
+user_id = require_auth()
+show_user_sidebar()
 
 # ---------------------------------------------------------------------------
 # Title
@@ -81,6 +85,7 @@ with st.expander("Create New Patient Profile", expanded=False):
             else:
                 patient_service.create_patient(
                     name=name.strip(),
+                    user_id=user_id,
                     age=age if age > 0 else None,
                     study_type=study_type,
                     window_size_seconds=window_sec,
@@ -100,7 +105,7 @@ with st.expander("Create New Patient Profile", expanded=False):
 
 st.subheader("Patients")
 
-patients = patient_service.list_patients()
+patients = patient_service.list_patients(user_id=user_id)
 
 if not patients:
     st.info("No patients yet. Create one above to get started.")
@@ -126,5 +131,5 @@ else:
                 st.caption(f"Features: {', '.join(features) if features else 'None'}")
             with col_actions:
                 if st.button("Delete", key=f"del_{p.id}", type="secondary"):
-                    patient_service.delete_patient(p.id)
+                    patient_service.delete_patient(p.id, user_id=user_id)
                     st.rerun()

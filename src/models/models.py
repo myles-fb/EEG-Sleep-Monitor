@@ -15,6 +15,19 @@ def _uuid():
     return str(uuid.uuid4())
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    display_name = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    patients = relationship("Patient", back_populates="user")
+    devices = relationship("Device", back_populates="user")
+
+
 class Patient(Base):
     __tablename__ = "patients"
 
@@ -22,6 +35,7 @@ class Patient(Base):
     name = Column(String, nullable=False)
     age = Column(Integer, nullable=True)
     study_type = Column(String, default="single_night")  # single_night | multi_night
+    user_id = Column(String, ForeignKey("users.id"), nullable=True)
 
     # Feature selection
     enable_mo_detection = Column(Boolean, default=True)
@@ -40,6 +54,7 @@ class Patient(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    user = relationship("User", back_populates="patients")
     studies = relationship(
         "Study", back_populates="patient", cascade="all, delete-orphan"
     )
@@ -52,6 +67,7 @@ class Device(Base):
     name = Column(String, nullable=False)
     device_key = Column(String, unique=True, nullable=False)  # hardware ID
     patient_id = Column(String, ForeignKey("patients.id"), nullable=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=True)
     current_study_id = Column(String, nullable=True)
     serial_port = Column(String, nullable=True)
     status = Column(String, default="offline")  # offline | connected | streaming | error
@@ -60,6 +76,7 @@ class Device(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     patient = relationship("Patient", backref="devices")
+    user = relationship("User", back_populates="devices")
 
 
 class Study(Base):

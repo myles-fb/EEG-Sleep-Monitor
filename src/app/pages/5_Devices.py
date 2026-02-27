@@ -18,6 +18,11 @@ from services import patient_service, device_service, study_service, config_serv
 init_db()
 
 st.set_page_config(page_title="Devices", page_icon="📡", layout="wide")
+
+from app.auth import require_auth, show_user_sidebar
+user_id = require_auth()
+show_user_sidebar()
+
 st.title("Device Management")
 
 from app.config import FASTAPI_URL
@@ -69,6 +74,7 @@ with st.expander("Register New Pi Device", expanded=False):
                 device_service.register_device(
                     name=dev_name.strip(),
                     device_key=dev_key.strip(),
+                    user_id=user_id,
                     serial_port=dev_serial.strip() or None,
                     ip_address=dev_ip.strip() or None,
                 )
@@ -83,7 +89,7 @@ st.divider()
 
 st.subheader("Registered Devices")
 
-devices = device_service.list_devices()
+devices = device_service.list_devices(user_id=user_id)
 live_status = get_live_status()
 
 # Build a lookup from device_key -> live info
@@ -95,7 +101,7 @@ if live_status:
 if not devices:
     st.info("No devices registered. Register one above.")
 else:
-    patients = patient_service.list_patients()
+    patients = patient_service.list_patients(user_id=user_id)
     patient_map = {p.id: p.name for p in patients}
 
     for dev in devices:
@@ -177,7 +183,7 @@ else:
 
                 # Delete
                 if st.button("Delete", key=f"del_{dev.id}", type="secondary"):
-                    device_service.delete_device(dev.id)
+                    device_service.delete_device(dev.id, user_id=user_id)
                     st.rerun()
 
 # ---------------------------------------------------------------------------

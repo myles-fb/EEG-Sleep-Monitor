@@ -17,13 +17,18 @@ from services import patient_service, study_service, export_service
 init_db()
 
 st.set_page_config(page_title="Export", page_icon="📤", layout="wide")
+
+from app.auth import require_auth, show_user_sidebar
+user_id = require_auth()
+show_user_sidebar()
+
 st.title("Export Study Data")
 
 # ---------------------------------------------------------------------------
 # Selection
 # ---------------------------------------------------------------------------
 
-patients = patient_service.list_patients()
+patients = patient_service.list_patients(user_id=user_id)
 if not patients:
     st.info("No patients found.")
     st.stop()

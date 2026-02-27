@@ -25,6 +25,11 @@ from services import patient_service, study_service, config_service, device_serv
 init_db()
 
 st.set_page_config(page_title="New Study", page_icon="🔬", layout="wide")
+
+from app.auth import require_auth, show_user_sidebar
+user_id = require_auth()
+show_user_sidebar()
+
 st.title("Start New Study")
 
 from app.config import FASTAPI_URL
@@ -33,7 +38,7 @@ from app.config import FASTAPI_URL
 # Patient selection
 # ---------------------------------------------------------------------------
 
-patients = patient_service.list_patients()
+patients = patient_service.list_patients(user_id=user_id)
 if not patients:
     st.info("No patients found. Create one on the Home page first.")
     st.stop()
@@ -72,7 +77,7 @@ if data_source == "Raspberry Pi (Live)":
     # -----------------------------------------------------------------------
     # Pi live streaming mode
     # -----------------------------------------------------------------------
-    devices = device_service.list_devices()
+    devices = device_service.list_devices(user_id=user_id)
     if not devices:
         st.warning("No Pi devices registered. Go to the **Devices** page to register one.")
         st.stop()

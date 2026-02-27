@@ -39,13 +39,18 @@ ENV_KEY_PREFIX = "env_"
 init_db()
 
 st.set_page_config(page_title="Per-Channel", page_icon="📈", layout="wide")
+
+from app.auth import require_auth, show_user_sidebar
+user_id = require_auth()
+show_user_sidebar()
+
 st.title("Per-Channel View")
 
 # ---------------------------------------------------------------------------
 # Patient & study selection
 # ---------------------------------------------------------------------------
 
-patients = patient_service.list_patients()
+patients = patient_service.list_patients(user_id=user_id)
 if not patients:
     st.info("No patients found. Create one on the Home page.")
     st.stop()

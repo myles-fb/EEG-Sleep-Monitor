@@ -38,13 +38,18 @@ MO_BANDS = ["0.5_3hz", "3_8hz", "8_15hz", "15_30hz"]
 init_db()
 
 st.set_page_config(page_title="Summary", page_icon="📊", layout="wide")
+
+from app.auth import require_auth, show_user_sidebar
+user_id = require_auth()
+show_user_sidebar()
+
 st.title("Summary")
 
 # ---------------------------------------------------------------------------
 # Patient & study selection
 # ---------------------------------------------------------------------------
 
-patients = patient_service.list_patients()
+patients = patient_service.list_patients(user_id=user_id)
 if not patients:
     st.info("No patients found. Create one on the Home page.")
     st.stop()
